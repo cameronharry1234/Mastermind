@@ -190,6 +190,20 @@
   }
   textarea.ms-input{ min-height:90px; margin:14px 0 16px; }
 
+  /* Masks text visually without type="password" — this is a shared group
+     passphrase, not a real per-user credential (it already sits in plaintext in
+     this page's source), so there's nothing to actually protect by using the
+     native password input type. Using it anyway was the cause of very laggy
+     typing: a bare type="password" field with no autocomplete/name hints and no
+     surrounding <form> gets treated by Chrome/Safari/extensions as a "new
+     account password" field, which triggers strength-suggestion UI, a
+     leaked-password network check on submit, and iCloud Keychain/Google Password
+     Manager overlays — all heavier on mobile. Plain text + this CSS keeps the
+     masked look with none of that overhead. (Firefox doesn't support
+     -webkit-text-security, so it falls back to showing the characters plainly —
+     an acceptable trade given the field holds no real secret.) */
+  input.ms-mask{ -webkit-text-security:disc; text-security:disc; }
+
   .ms-btn{
     font-family:'Space Mono',monospace;
     font-size:12px;
@@ -3615,7 +3629,10 @@ Keep every string concise. Do not repeat things they say they've already tried. 
         <h1 class="ms-title" style="text-align:center;">This table's<br/><em>invite-only.</em></h1>
         <p class="ms-sub" style="text-align:center; margin-left:auto; margin-right:auto;">Enter the group passphrase to get in.</p>
         <div class="ms-gate-form">
-          <input type="password" class="ms-input" id="ms-gate-input" placeholder="Passphrase" value="${esc(state.passInput)}"/>
+          <input type="text" class="ms-input ms-mask" id="ms-gate-input" placeholder="Passphrase"
+            name="mm-gate-passphrase" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+            data-lpignore="true" data-1p-ignore data-bwignore="true" data-form-type="other"
+            value="${esc(state.passInput)}"/>
           <button class="ms-btn" id="ms-gate-submit">Enter</button>
         </div>
         ${state.passError ? `<div class="ms-error" style="text-align:center;">That's not it — try again.</div>` : ""}
