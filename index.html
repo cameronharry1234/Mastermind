@@ -1163,6 +1163,115 @@
 </div>
 
 <script>
+// --- PWA bootstrap: viewport/meta tags, app icon, web app manifest, service worker ---
+// Self-contained and defensive: every step is wrapped so a failure here (e.g. inside
+// the Claude artifact preview sandbox, which has no second file to serve a sw.js from)
+// can never block the app itself from loading.
+(function(){
+  try{
+    var head = document.head || document.getElementsByTagName('head')[0];
+    if(!head){
+      head = document.createElement('head');
+      document.documentElement.insertBefore(head, document.body || document.documentElement.firstChild);
+    }
+
+    function ensureMeta(name, content, attr){
+      attr = attr || 'name';
+      var el = head.querySelector('meta[' + attr + '="' + name + '"]');
+      if(!el){ el = document.createElement('meta'); el.setAttribute(attr, name); head.appendChild(el); }
+      el.setAttribute('content', content);
+      return el;
+    }
+    ensureMeta('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover');
+    ensureMeta('theme-color', '#123a72');
+    ensureMeta('mobile-web-app-capable', 'yes');
+    ensureMeta('apple-mobile-web-app-capable', 'yes');
+    ensureMeta('apple-mobile-web-app-status-bar-style', 'black-translucent');
+    ensureMeta('apple-mobile-web-app-title', 'Mastermind');
+
+    // Draw a navy/gold "M" badge as the app icon, at install-icon resolutions,
+    // so we never depend on a separate image file shipping alongside this page.
+    function makeIconDataUrl(size){
+      var c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      var ctx = c.getContext('2d');
+      var g = ctx.createRadialGradient(size*0.35, size*0.3, size*0.08, size*0.5, size*0.52, size*0.78);
+      g.addColorStop(0, '#1a4a8f');
+      g.addColorStop(1, '#0c2850');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+      ctx.strokeStyle = 'rgba(224,168,63,0.55)';
+      ctx.lineWidth = Math.max(2, size * 0.022);
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, size*0.43, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.fillStyle = '#e0a83f';
+      ctx.font = '700 ' + Math.round(size*0.52) + 'px Georgia, "Times New Roman", serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('M', size/2, size*0.57);
+      return c.toDataURL('image/png');
+    }
+
+    var icon192 = null, icon512 = null;
+    try{
+      icon192 = makeIconDataUrl(192);
+      icon512 = makeIconDataUrl(512);
+    }catch(e){ icon192 = icon512 = null; }
+
+    if(icon192){
+      var favicon = head.querySelector('link[rel="icon"]');
+      if(!favicon){ favicon = document.createElement('link'); favicon.setAttribute('rel', 'icon'); head.appendChild(favicon); }
+      favicon.setAttribute('type', 'image/png');
+      favicon.setAttribute('href', icon192);
+
+      var touch = head.querySelector('link[rel="apple-touch-icon"]');
+      if(!touch){ touch = document.createElement('link'); touch.setAttribute('rel', 'apple-touch-icon'); head.appendChild(touch); }
+      touch.setAttribute('href', icon192);
+    }
+
+    // Build the web app manifest at runtime and serve it from a Blob URL, so
+    // "Add to Home Screen" / install prompts work without a second manifest.json
+    // file existing anywhere - the single HTML file stays fully self-contained.
+    if(icon192 && icon512 && window.Blob && window.URL && URL.createObjectURL){
+      try{
+        var manifest = {
+          name: "Mastermind",
+          short_name: "Mastermind",
+          description: "Group accountability, goals, weekly check-ins and live session tools for the Mastermind.",
+          start_url: ".",
+          scope: ".",
+          display: "standalone",
+          orientation: "portrait-primary",
+          background_color: "#f7fbff",
+          theme_color: "#123a72",
+          icons: [
+            { src: icon192, sizes: "192x192", type: "image/png", purpose: "any maskable" },
+            { src: icon512, sizes: "512x512", type: "image/png", purpose: "any maskable" }
+          ]
+        };
+        var manifestBlob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+        var manifestUrl = URL.createObjectURL(manifestBlob);
+        var manifestLink = head.querySelector('link[rel="manifest"]');
+        if(!manifestLink){ manifestLink = document.createElement('link'); manifestLink.setAttribute('rel', 'manifest'); head.appendChild(manifestLink); }
+        manifestLink.setAttribute('href', manifestUrl);
+      }catch(e){ /* manifest unsupported in this context - safe to skip */ }
+    }
+
+    // Register a service worker for offline app-shell caching. This only has an
+    // effect where this page is actually hosted at a real URL alongside its own
+    // sw.js (e.g. the GitHub Pages copy) - browsers refuse to register a service
+    // worker from a blob:/data: URL, so inside the Claude artifact preview (which
+    // has no second file to serve) this quietly finds nothing at ./sw.js and no-ops.
+    if('serviceWorker' in navigator){
+      window.addEventListener('load', function(){
+        navigator.serviceWorker.register('./sw.js').catch(function(){ /* no sw.js at this origin - fine */ });
+      });
+    }
+  }catch(e){ /* PWA setup is a progressive enhancement layer - never block the app */ }
+})();
+</script>
+<script>
 (function(){
   const STORAGE_ENTRY_PREFIX = "mastermind:entry:";
   const UNLOCK_STORAGE_KEY = "mastermind:unlocked";
