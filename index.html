@@ -1845,18 +1845,35 @@ When advising: identify which pillar(s) above are actually relevant to the speci
   }
 
   // ---------- API ----------
-  async function callMentor(systemSuffix, userText, maxTokens){
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({
-        model:"claude-sonnet-4-6",
-        max_tokens: maxTokens || 900,
-        system: PRIMER + "\n\n" + systemSuffix,
-        messages: [{ role:"user", content: userText }]
-      })
+  // All AI calls go through the "mentor" Supabase Edge Function, which holds the
+  // real Anthropic API key server-side and checks the caller is signed in. Nothing
+  // here ever talks to api.anthropic.com directly.
+  async function callAiProxy(system, messages, maxTokens){
+    const { data, error } = await sb.functions.invoke("mentor", {
+      body: { system, messages, maxTokens }
     });
-    const data = await response.json();
+    if(error){
+      // supabase-js puts non-2xx responses here; try to surface the function's own message.
+      let msg = error.message || "AI request failed.";
+      try{
+        const ctx = error.context;
+        if(ctx && typeof ctx.json === "function"){
+          const body = await ctx.json();
+          if(body && body.error) msg = body.error;
+        }
+      }catch(_e){ /* ignore parse failures, fall back to default msg */ }
+      throw new Error(msg);
+    }
+    if(data && data.error) throw new Error(data.error);
+    return data;
+  }
+
+  async function callMentor(systemSuffix, userText, maxTokens){
+    const data = await callAiProxy(
+      PRIMER + "\n\n" + systemSuffix,
+      [{ role:"user", content: userText }],
+      maxTokens || 900
+    );
     const block = (data.content || []).find(b=>b.type==="text");
     if(!block) throw new Error("No response");
     return block.text.trim();
@@ -1894,17 +1911,11 @@ When advising: identify which pillar(s) above are actually relevant to the speci
 
     try{
       const sys = `You're in an ongoing back-and-forth conversation with a member. Reply conversationally, like a sharp, direct advisor talking — not a report, no headers, no JSON. Keep replies focused: usually 1-3 short paragraphs unless the question genuinely needs more. Reference relevant frameworks by name only when it's genuinely useful, not as a checkbox. When it would genuinely help, recommend a specific further resource — a book, a talk, a channel, an article — by name, but only when it adds real value, not in every reply. If the member attaches an image (e.g. an outfit, a photo, a screenshot) or a document, look at it directly and respond to what's actually in it. Remember and build on earlier turns in this conversation.`;
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({
-          model:"claude-sonnet-4-6",
-          max_tokens: 700,
-          system: PRIMER + "\n\n" + sys,
-          messages: state.chat.messages.map(m=>({ role:m.role, content: messageToApiContent(m) }))
-        })
-      });
-      const data = await response.json();
+      const data = await callAiProxy(
+        PRIMER + "\n\n" + sys,
+        state.chat.messages.map(m=>({ role:m.role, content: messageToApiContent(m) })),
+        700
+      );
       const block = (data.content || []).find(b=>b.type==="text");
       if(!block) throw new Error("No response");
       state.chat.messages.push({ role:"assistant", content: block.text.trim() });
