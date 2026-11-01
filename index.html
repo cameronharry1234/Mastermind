@@ -1415,6 +1415,67 @@
     return url;
   }
 
+  // ---------- Legal: Terms of Service & Privacy Policy ----------
+  // Drafted for review, not a substitute for a solicitor. "OPERATOR_NAME" is a
+  // placeholder for your real legal name (you're currently operating as an
+  // individual, not "Mastermind Company Ltd" — that isn't incorporated yet, so
+  // naming it here would misrepresent who users are actually contracting with).
+  // Swap this constant for the real Ltd name the day it's actually registered.
+  const LEGAL_OPERATOR_NAME = "the operator of Mastermind";
+  const LEGAL_CONTACT_EMAIL = "cameronharry1234@gmail.com";
+  const LEGAL_LAST_UPDATED = "1 November 2026";
+
+  const TERMS_SECTIONS = [
+    { h: "Who this agreement is with", b: `Mastermind (the "Service") is currently operated by ${LEGAL_OPERATOR_NAME} as an individual, not yet through a registered company. By creating an account you're entering this agreement with that individual. Contact: ${LEGAL_CONTACT_EMAIL}.` },
+    { h: "Eligibility", b: "You must be at least 18 years old to create an account. Mastermind is built for adult accountability groups and isn't designed or moderated for use by minors." },
+    { h: "Your account", b: "You're responsible for keeping your login credentials secure and for anything that happens under your account. Tell us if you believe your account has been accessed without your permission." },
+    { h: "Groups and shared content", b: "When you join a group, other members of that group can see the content you post into it — check-ins, public goals, roster answers, forge session history, and any one-sheets generated from your answers. Goals you mark “private” are visible only to you. Don't post anything in a group you wouldn't want other members of that specific group to see; leaving a group does not retroactively delete things other members already saw or built on." },
+    { h: "Acceptable use", b: "Don't use Mastermind to harass, threaten, or abuse other members; to post unlawful, defamatory, or infringing content; to attempt to access another member's account or data; or to interfere with the Service's normal operation. We can suspend or remove accounts that break this." },
+    { h: "The AI mentor features", b: "One-sheet generation, check-in analysis, and the chat advisor are powered by a third-party AI model (Anthropic's Claude). Responses are generated, not reviewed by a human, and can be wrong, incomplete, or miss context. They are not financial, legal, medical, or psychological advice, and shouldn't be treated as a substitute for a qualified professional where one of those is genuinely needed. Use your own judgment, especially for anything with real financial or legal consequences." },
+    { h: "Buying books we mention", b: "Some books in the Library, and some AI-suggested further reading, link to Amazon. As an Amazon Associate, Mastermind may earn a commission on qualifying purchases made through those links, at no extra cost to you. We don't receive or see any details of what you buy." },
+    { h: "Content you upload", b: "You keep ownership of anything you upload (photos, PDFs, written answers). You're giving us the limited right to store it and show it to your group's other members as the Service is designed to do. Don't upload anything you don't have the right to share." },
+    { h: "No warranty", b: "The Service is provided “as is.” We don't guarantee it will be uninterrupted, error-free, or permanently available, and we aren't liable for losses arising from outages, data loss, or AI-generated content, beyond what the law requires." },
+    { h: "Ending your account", b: "You can delete your account at any time from Settings. We can suspend or terminate accounts that violate these terms. Sections that by their nature should survive termination (e.g. what already happened while your account was active) continue to apply." },
+    { h: "Changes to these terms", b: "We may update these terms as the Service changes (e.g. when payments are introduced). Material changes will be reflected here with an updated date; continuing to use the Service after a change means you accept the update." },
+    { h: "Governing law", b: "These terms are governed by the laws of England and Wales, and any dispute is subject to the exclusive jurisdiction of the courts of England and Wales." },
+  ];
+
+  const PRIVACY_SECTIONS = [
+    { h: "Who controls your data", b: `${LEGAL_OPERATOR_NAME} is the data controller for Mastermind. Contact for any privacy question or request: ${LEGAL_CONTACT_EMAIL}.` },
+    { h: "What we collect", b: "Account info: your email address and password (handled by our authentication provider — we never see your raw password). Profile: the display name and colour you choose. Group content: goals, check-in notes, roster answers, uploaded one-sheet PDFs/images, Forge session history, and chat messages you send to the AI mentor. Usage: basic request counts used only to enforce a fair-use rate limit on AI features." },
+    { h: "How we use it", b: "To run the Service itself — showing your groups their shared content, generating one-sheets and chat replies, and sending reminder notifications you've opted into. We don't use your data for advertising, and we don't sell it." },
+    { h: "Who we share it with", b: "Supabase (our database, authentication, and file storage provider) stores your data on our behalf. Anthropic processes the text, images, and PDFs you submit to the AI mentor features in order to generate a response — only what you submit in that request is sent, and it's used to generate your reply, not to train Anthropic's models by default under their API terms. GitHub Pages serves the app's static files but never sees your personal data. If a Stripe-based payment feature is introduced, Stripe will separately process payment details under its own privacy policy — we never see or store full card numbers ourselves. We don't share your data with anyone else, except where required by law." },
+    { h: "Where it's stored", b: "Our database is hosted in the UK (London). Requests to the AI mentor features are processed by Anthropic, which may process them outside the UK/EEA as part of generating a response." },
+    { h: "Cookies and local storage", b: "We use your browser's local storage (not tracking cookies) to remember device-only preferences — dark mode, notification settings, which group you last had open, and a local cache of your chat history. None of this is shared with anyone; it stays on your device." },
+    { h: "How long we keep it", b: "We keep your data for as long as your account is active. If you delete your account, your profile, goals, check-ins, reactions/comments, roster entries, uploaded files, and AI usage records are permanently deleted within the same action — see Settings → Delete my account. A small number of records other people still rely on (e.g. a group you created, with other members still in it) are kept but stripped of your identifying link to them." },
+    { h: "Your rights", b: "Under UK GDPR you can ask to access, correct, delete, or export your data, or object to or restrict how it's used. Account deletion is self-service in Settings; for anything else, email us at " + LEGAL_CONTACT_EMAIL + ". You can also complain to the UK Information Commissioner's Office (ico.org.uk) if you think we've mishandled your data." },
+    { h: "Changes to this policy", b: "We'll update the date below if this policy changes in a way that matters, such as adding a new data use or third-party processor." },
+  ];
+
+  function renderLegalPage(kind){
+    const isTerms = kind === "terms";
+    const sections = isTerms ? TERMS_SECTIONS : PRIVACY_SECTIONS;
+    return `
+      <div class="ms-shell-inner" style="max-width:640px; margin:0 auto; padding:28px 18px 60px;">
+        <div class="ms-eyebrow">${isTerms ? "Terms of Service" : "Privacy Policy"}</div>
+        <h1 class="ms-title">${isTerms ? "Terms of<br/><em>Service.</em>" : "Privacy<br/><em>Policy.</em>"}</h1>
+        <p class="ms-sub-dim">Last updated ${esc(LEGAL_LAST_UPDATED)}.</p>
+        ${sections.map(s=>`
+          <div class="ms-os-section" style="margin-top:18px;">
+            <h3>${esc(s.h)}</h3>
+            <p>${esc(s.b)}</p>
+          </div>
+        `).join("")}
+        <button class="ms-btn ms-btn-ghost" id="ms-legal-close-btn" style="margin-top:28px;">← Back</button>
+      </div>
+    `;
+  }
+
+  function bindLegalPageEvents(){
+    const closeBtn = document.getElementById("ms-legal-close-btn");
+    if(closeBtn) closeBtn.addEventListener("click", ()=>{ state.showLegal = null; render(); });
+  }
+
   // ---------- Pillars (the six-pillar structure) ----------
   const FACETS = [
     { key:"finance", name:"Finance", desc:"Money, business, investing, career.", color:"#c9a35e" },
@@ -1503,6 +1564,8 @@ When advising: identify which pillar(s) above are actually relevant to the speci
     authForm: { mode:"signin", email:"", password:"", error:null, loading:false, info:null },
     recovery: null,         // set while a password-reset link is being handled: {status:'pending'|'active'|'error', error, password, loading}
     showAccount: false,     // account/settings panel overlay
+    showLegal: null,        // null | "terms" | "privacy" — legal page overlay
+    agreedToTerms: false,   // signup consent checkbox
     accountMembers: { loaded:false, loading:false, list:[], error:null },
     accountDanger: { confirmText:"", loading:false, error:null },
     group: null,            // the active group: { id, name, invite_code, role }
@@ -3671,6 +3734,12 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       bindRecoveryGateEvents();
       return;
     }
+    if(state.showLegal){
+      if(navEl) navEl.style.display = state.session ? "" : "none";
+      app.innerHTML = renderLegalPage(state.showLegal);
+      bindLegalPageEvents();
+      return;
+    }
     if(!state.session){
       if(navEl) navEl.style.display = "none";
       app.innerHTML = renderAuthGate();
@@ -3786,12 +3855,22 @@ Keep every string concise. Do not repeat things they say they've already tried. 
         </div>
         ${f.error ? `<div class="ms-error" style="text-align:center;">${esc(f.error)}</div>` : ""}
         ${(!isSignup) ? `<p class="ms-sub-dim" style="text-align:center; margin-top:10px;"><a href="#" id="ms-auth-forgot" style="color:var(--sky); text-decoration:underline;">Forgot your password?</a></p>` : ""}
+        ${isSignup ? `
+          <label class="ms-sub-dim" style="display:flex; align-items:flex-start; gap:8px; max-width:360px; margin:16px auto 0; text-align:left; cursor:pointer;">
+            <input type="checkbox" id="ms-auth-agree" ${state.agreedToTerms ? 'checked' : ''} style="margin-top:3px;"/>
+            <span>I agree to the <a href="#" id="ms-auth-terms-link" style="color:var(--sky); text-decoration:underline;">Terms of Service</a> and <a href="#" id="ms-auth-privacy-link" style="color:var(--sky); text-decoration:underline;">Privacy Policy</a>.</span>
+          </label>
+        ` : ""}
         <div class="ms-actions" style="justify-content:center; margin-top:20px;">
           <button class="ms-btn ms-btn-gold" id="ms-auth-submit" ${f.loading?'disabled':''}>${f.loading ? "Please wait..." : (isSignup ? "Create account" : "Sign in")}</button>
         </div>
         <p class="ms-sub-dim" style="text-align:center; margin-top:16px;">
           ${isSignup ? "Already have an account?" : "New here?"}
           <a href="#" id="ms-auth-switch" style="color:var(--sky); text-decoration:underline;">${isSignup ? "Sign in" : "Create one"}</a>
+        </p>
+        <p class="ms-sub-dim" style="text-align:center; margin-top:18px; opacity:0.6; font-size:11px;">
+          <a href="#" id="ms-auth-terms-link-footer" style="color:var(--ink-dim); text-decoration:underline;">Terms</a> &middot;
+          <a href="#" id="ms-auth-privacy-link-footer" style="color:var(--ink-dim); text-decoration:underline;">Privacy</a>
         </p>
       </div>
     `;
@@ -3823,6 +3902,16 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       f.error = null; f.info = null;
       render();
     });
+    const agreeBox = document.getElementById("ms-auth-agree");
+    if(agreeBox) agreeBox.addEventListener("change", e=>{ state.agreedToTerms = e.target.checked; });
+    ["ms-auth-terms-link","ms-auth-terms-link-footer"].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.addEventListener("click", (e)=>{ e.preventDefault(); state.showLegal = "terms"; render(); });
+    });
+    ["ms-auth-privacy-link","ms-auth-privacy-link-footer"].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.addEventListener("click", (e)=>{ e.preventDefault(); state.showLegal = "privacy"; render(); });
+    });
   }
 
   async function submitForgotPassword(){
@@ -3852,6 +3941,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     const email = f.email.trim();
     if(!email || !f.password){ f.error = "Enter your email and password."; render(); return; }
     if(f.mode === "signup" && f.password.length < 6){ f.error = "Password needs to be at least 6 characters."; render(); return; }
+    if(f.mode === "signup" && !state.agreedToTerms){ f.error = "You need to agree to the Terms of Service and Privacy Policy first."; render(); return; }
     f.loading = true; f.error = null; render();
     try{
       const { data, error } = f.mode === "signup"
@@ -4246,12 +4336,20 @@ Keep every string concise. Do not repeat things they say they've already tried. 
           </div>
         </div>
 
-        <button class="ms-btn ms-btn-ghost" id="ms-account-close-btn" style="margin-top:28px;">← Back</button>
+        <p class="ms-sub-dim" style="margin-top:24px; opacity:0.6; font-size:11px;">
+          <a href="#" id="ms-account-terms-link" style="color:var(--ink-dim); text-decoration:underline;">Terms of Service</a> &middot;
+          <a href="#" id="ms-account-privacy-link" style="color:var(--ink-dim); text-decoration:underline;">Privacy Policy</a>
+        </p>
+        <button class="ms-btn ms-btn-ghost" id="ms-account-close-btn" style="margin-top:16px;">← Back</button>
       </div>
     `;
   }
 
   function bindAccountPanelEvents(){
+    const termsLink = document.getElementById("ms-account-terms-link");
+    if(termsLink) termsLink.addEventListener("click", (e)=>{ e.preventDefault(); state.showAccount = false; state.showLegal = "terms"; render(); });
+    const privacyLink = document.getElementById("ms-account-privacy-link");
+    if(privacyLink) privacyLink.addEventListener("click", (e)=>{ e.preventDefault(); state.showAccount = false; state.showLegal = "privacy"; render(); });
     document.querySelectorAll("[data-remove]").forEach(btn=>{
       btn.addEventListener("click", ()=>removeMember(btn.dataset.remove));
     });
