@@ -1218,6 +1218,7 @@
         <button class="ms-tab-btn" id="ms-profile-nav-btn" title="Set up your profile" aria-label="Set up your profile" style="display:none;">👤</button>
         <button class="ms-tab-btn" id="ms-notify-toggle" title="Reminders" aria-label="Toggle reminders"></button>
         <button class="ms-tab-btn" id="ms-dark-toggle" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
+        <button class="ms-tab-btn" id="ms-account-btn" title="Account" aria-label="Account settings">⚙️</button>
         <button class="ms-tab-btn" id="ms-lock-btn" title="Sign out" aria-label="Sign out">🔒</button>
       </div>
     </div>
@@ -1499,7 +1500,11 @@ When advising: identify which pillar(s) above are actually relevant to the speci
     tab: "home",
     session: null,          // Supabase auth session, or null when signed out
     authLoading: true,      // true until the initial getSession() resolves
-    authForm: { mode:"signin", email:"", password:"", error:null, loading:false },
+    authForm: { mode:"signin", email:"", password:"", error:null, loading:false, info:null },
+    recovery: null,         // set while a password-reset link is being handled: {status:'pending'|'active'|'error', error, password, loading}
+    showAccount: false,     // account/settings panel overlay
+    accountMembers: { loaded:false, loading:false, list:[], error:null },
+    accountDanger: { confirmText:"", loading:false, error:null },
     group: null,            // the active group: { id, name, invite_code, role }
     myGroups: [],           // every group this account belongs to
     groupForm: { mode:"create", name:"", code:"", error:null, loading:false },
@@ -3660,6 +3665,12 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       app.innerHTML = `<div class="ms-loading" style="margin-top:20vh;"><div class="ms-spinner"></div>Loading...</div>`;
       return;
     }
+    if(state.recovery){
+      if(navEl) navEl.style.display = "none";
+      app.innerHTML = renderRecoveryGate();
+      bindRecoveryGateEvents();
+      return;
+    }
     if(!state.session){
       if(navEl) navEl.style.display = "none";
       app.innerHTML = renderAuthGate();
@@ -3703,6 +3714,13 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       stopForgeTicker();
     }
 
+    if(state.showAccount){
+      app.innerHTML = renderAccountPanel();
+      bindAccountPanelEvents();
+      if(!state.accountMembers.loaded && !state.accountMembers.loading) loadAccountMembers();
+      return;
+    }
+
     if(state.tab === "home"){
       app.innerHTML = renderHome();
       bindHomeEvents();
@@ -3730,6 +3748,30 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   function renderAuthGate(){
     const f = state.authForm;
     const isSignup = f.mode === "signup";
+    const isForgot = f.mode === "forgot";
+
+    if(isForgot){
+      return `
+        <div class="ms-gate">
+          <div class="ms-gate-mark">M</div>
+          <div class="ms-eyebrow" style="justify-content:center;">Mastermind</div>
+          <h1 class="ms-title" style="text-align:center;">Reset your<br/><em>password.</em></h1>
+          <p class="ms-sub" style="text-align:center; margin-left:auto; margin-right:auto;">Enter your email and we'll send you a link to set a new password.</p>
+          <div class="ms-field-wrap" style="margin-left:0; max-width:360px; margin-left:auto; margin-right:auto;">
+            <input type="email" class="ms-input" id="ms-auth-email" placeholder="Email" autocomplete="email" value="${esc(f.email)}"/>
+          </div>
+          ${f.error ? `<div class="ms-error" style="text-align:center;">${esc(f.error)}</div>` : ""}
+          ${f.info ? `<div class="ms-sub" style="text-align:center; color:var(--gold);">${esc(f.info)}</div>` : ""}
+          <div class="ms-actions" style="justify-content:center; margin-top:20px;">
+            <button class="ms-btn ms-btn-gold" id="ms-auth-submit" ${f.loading?'disabled':''}>${f.loading ? "Sending..." : "Send reset link"}</button>
+          </div>
+          <p class="ms-sub-dim" style="text-align:center; margin-top:16px;">
+            <a href="#" id="ms-auth-switch" style="color:var(--sky); text-decoration:underline;">Back to sign in</a>
+          </p>
+        </div>
+      `;
+    }
+
     return `
       <div class="ms-gate">
         <div class="ms-gate-mark">M</div>
@@ -3743,6 +3785,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
             autocomplete="${isSignup ? 'new-password' : 'current-password'}" value="${esc(f.password)}"/>
         </div>
         ${f.error ? `<div class="ms-error" style="text-align:center;">${esc(f.error)}</div>` : ""}
+        ${(!isSignup) ? `<p class="ms-sub-dim" style="text-align:center; margin-top:10px;"><a href="#" id="ms-auth-forgot" style="color:var(--sky); text-decoration:underline;">Forgot your password?</a></p>` : ""}
         <div class="ms-actions" style="justify-content:center; margin-top:20px;">
           <button class="ms-btn ms-btn-gold" id="ms-auth-submit" ${f.loading?'disabled':''}>${f.loading ? "Please wait..." : (isSignup ? "Create account" : "Sign in")}</button>
         </div>
@@ -3765,14 +3808,42 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       if(f.email) passwordInput.focus(); else if(emailInput) emailInput.focus();
     }
     const submit = document.getElementById("ms-auth-submit");
-    if(submit) submit.addEventListener("click", submitAuthForm);
+    if(submit) submit.addEventListener("click", f.mode === "forgot" ? submitForgotPassword : submitAuthForm);
     const switchLink = document.getElementById("ms-auth-switch");
     if(switchLink) switchLink.addEventListener("click", (e)=>{
       e.preventDefault();
-      f.mode = f.mode === "signup" ? "signin" : "signup";
-      f.error = null;
+      f.mode = f.mode === "forgot" ? "signin" : (f.mode === "signup" ? "signin" : "signup");
+      f.error = null; f.info = null;
       render();
     });
+    const forgotLink = document.getElementById("ms-auth-forgot");
+    if(forgotLink) forgotLink.addEventListener("click", (e)=>{
+      e.preventDefault();
+      f.mode = "forgot";
+      f.error = null; f.info = null;
+      render();
+    });
+  }
+
+  async function submitForgotPassword(){
+    const f = state.authForm;
+    if(f.loading) return;
+    const email = f.email.trim();
+    if(!email){ f.error = "Enter your email first."; render(); return; }
+    f.loading = true; f.error = null; f.info = null; render();
+    try{
+      const redirectTo = window.location.origin + window.location.pathname;
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+      if(error) throw error;
+      f.loading = false;
+      f.info = "Check your email for a link to reset your password.";
+      render();
+    }catch(e){
+      console.error(e);
+      f.loading = false;
+      f.error = e.message || "Couldn't send that right now — try again.";
+      render();
+    }
   }
 
   async function submitAuthForm(){
@@ -3804,6 +3875,100 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       f.error = e.message || "Something went wrong — try again.";
       render();
     }
+  }
+
+  // ---------- Password recovery (link from a reset email) ----------
+  function renderRecoveryGate(){
+    const r = state.recovery;
+    if(r.status === "error"){
+      return `
+        <div class="ms-gate">
+          <div class="ms-gate-mark">M</div>
+          <h1 class="ms-title" style="text-align:center;">Link expired.</h1>
+          <p class="ms-sub" style="text-align:center;">${esc(r.error || "That reset link has expired or already been used.")}</p>
+          <div class="ms-actions" style="justify-content:center; margin-top:20px;">
+            <button class="ms-btn ms-btn-gold" id="ms-recovery-back">Back to sign in</button>
+          </div>
+        </div>
+      `;
+    }
+    return `
+      <div class="ms-gate">
+        <div class="ms-gate-mark">M</div>
+        <div class="ms-eyebrow" style="justify-content:center;">Mastermind</div>
+        <h1 class="ms-title" style="text-align:center;">Set a new<br/><em>password.</em></h1>
+        <div class="ms-field-wrap" style="margin-left:0; max-width:360px; margin-left:auto; margin-right:auto;">
+          <input type="password" class="ms-input" id="ms-recovery-password" placeholder="New password (6+ characters)" autocomplete="new-password" value="${esc(r.password||'')}"/>
+        </div>
+        ${r.error ? `<div class="ms-error" style="text-align:center;">${esc(r.error)}</div>` : ""}
+        <div class="ms-actions" style="justify-content:center; margin-top:20px;">
+          <button class="ms-btn ms-btn-gold" id="ms-recovery-submit" ${r.loading?'disabled':''}>${r.loading ? "Saving..." : "Set password"}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindRecoveryGateEvents(){
+    const r = state.recovery;
+    const pw = document.getElementById("ms-recovery-password");
+    if(pw){
+      pw.addEventListener("input", e=>{ r.password = e.target.value; });
+      pw.addEventListener("keydown", e=>{ if(e.key === "Enter") submitRecoveryPassword(); });
+      pw.focus();
+    }
+    const submit = document.getElementById("ms-recovery-submit");
+    if(submit) submit.addEventListener("click", submitRecoveryPassword);
+    const back = document.getElementById("ms-recovery-back");
+    if(back) back.addEventListener("click", ()=>{ state.recovery = null; render(); });
+  }
+
+  async function submitRecoveryPassword(){
+    const r = state.recovery;
+    if(r.loading) return;
+    if(!r.password || r.password.length < 6){ r.error = "Password needs to be at least 6 characters."; render(); return; }
+    r.loading = true; r.error = null; render();
+    try{
+      const { error } = await sb.auth.updateUser({ password: r.password });
+      if(error) throw error;
+      const { data } = await sb.auth.getSession();
+      state.session = data.session;
+      state.recovery = null;
+      haptic(14);
+      await afterSignIn();
+    }catch(e){
+      console.error(e);
+      r.loading = false;
+      r.error = e.message || "Couldn't set that password — try again.";
+      render();
+    }
+  }
+
+  // Called once at startup, before the normal getSession() check. If the URL
+  // is a Supabase password-recovery redirect (#access_token=...&type=recovery),
+  // exchange those tokens for a session ourselves (detectSessionInUrl is off)
+  // and strip them from the URL so they never linger in history/bookmarks.
+  async function consumeRecoveryLinkIfPresent(){
+    const hash = window.location.hash || "";
+    if(!hash.includes("type=recovery")) return false;
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    if(!access_token || !refresh_token){
+      state.recovery = { status:"error" };
+      return true;
+    }
+    state.recovery = { status:"pending", password:"", loading:false, error:null };
+    try{
+      const { data, error } = await sb.auth.setSession({ access_token, refresh_token });
+      if(error) throw error;
+      state.session = data.session;
+      state.recovery.status = "active";
+    }catch(e){
+      console.error(e);
+      state.recovery = { status:"error", error:"That reset link has expired or already been used. Request a new one from the sign-in screen." };
+    }
+    return true;
   }
 
   // Runs once we have a real session: load (or create-if-missing) the profile,
@@ -3928,6 +4093,179 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     state.myGroups = [];
     try{ localStorage.removeItem(LAST_GROUP_KEY); }catch(e){}
     render();
+  }
+
+  // ---------- Account panel: group admin controls + account deletion ----------
+  async function loadAccountMembers(){
+    if(!state.group) return;
+    state.accountMembers.loading = true; state.accountMembers.error = null; render();
+    try{
+      const gid = state.group.id;
+      const { data: memberRows, error: mErr } = await sb.from("group_members").select("user_id,role,joined_at").eq("group_id", gid);
+      if(mErr) throw mErr;
+      const userIds = (memberRows||[]).map(m=>m.user_id);
+      const { data: profileRows, error: pErr } = await sb.from("profiles").select("id,name,color")
+        .in("id", userIds.length ? userIds : ["00000000-0000-0000-0000-000000000000"]);
+      if(pErr) throw pErr;
+      const profileMap = {};
+      (profileRows||[]).forEach(p=>{ profileMap[p.id] = p; });
+      const list = memberRows.map(m=>({
+        userId: m.user_id,
+        role: m.role,
+        joinedAt: m.joined_at,
+        name: (profileMap[m.user_id] && profileMap[m.user_id].name) || "Unnamed member",
+        color: (profileMap[m.user_id] && profileMap[m.user_id].color) || "sky",
+        isMe: m.user_id === state.session.user.id
+      })).sort((a,b)=> (a.role===b.role ? 0 : (a.role==='admin'?-1:1)));
+      state.accountMembers = { loaded:true, loading:false, list, error:null };
+    }catch(e){
+      console.error(e);
+      state.accountMembers = { loaded:true, loading:false, list:[], error:"Couldn't load the member list." };
+    }
+    render();
+  }
+
+  async function removeMember(userId){
+    if(!confirm("Remove this person from the group? They'll keep their account but lose access to this group.")) return;
+    try{
+      const { error } = await sb.from("group_members").delete().eq("group_id", state.group.id).eq("user_id", userId);
+      if(error) throw error;
+      await loadAccountMembers();
+    }catch(e){
+      console.error(e);
+      state.accountMembers.error = e.message || "Couldn't remove that member.";
+      render();
+    }
+  }
+
+  async function promoteMember(userId){
+    try{
+      const { error } = await sb.from("group_members").update({ role:"admin" }).eq("group_id", state.group.id).eq("user_id", userId);
+      if(error) throw error;
+      await loadAccountMembers();
+    }catch(e){
+      console.error(e);
+      state.accountMembers.error = e.message || "Couldn't update that member's role.";
+      render();
+    }
+  }
+
+  async function leaveCurrentGroup(){
+    if(!confirm(`Leave "${state.group.name}"? You can rejoin later with the invite code.`)) return;
+    try{
+      const { error } = await sb.from("group_members").delete().eq("group_id", state.group.id).eq("user_id", state.session.user.id);
+      if(error) throw error;
+      state.myGroups = state.myGroups.filter(g=>g.id !== state.group.id);
+      state.group = null;
+      state.showAccount = false;
+      try{ localStorage.removeItem(LAST_GROUP_KEY); }catch(e){}
+      render();
+    }catch(e){
+      console.error(e);
+      alert(e.message || "Couldn't leave the group right now.");
+    }
+  }
+
+  async function deleteMyAccount(){
+    const d = state.accountDanger;
+    if(d.confirmText.trim().toUpperCase() !== "DELETE"){
+      d.error = "Type DELETE (in capitals) to confirm.";
+      render();
+      return;
+    }
+    d.loading = true; d.error = null; render();
+    try{
+      const { data, error } = await sb.functions.invoke("delete-account", { body: {} });
+      if(error){
+        let msg = error.message || "Couldn't delete your account right now.";
+        try{
+          const ctx = error.context;
+          if(ctx && typeof ctx.json === "function"){
+            const body = await ctx.json();
+            if(body && body.error) msg = body.error;
+          }
+        }catch(_e){}
+        throw new Error(msg);
+      }
+      if(data && data.error) throw new Error(data.error);
+      try{ await sb.auth.signOut(); }catch(_e){}
+      try{ localStorage.clear(); }catch(_e){}
+      state.session = null; state.group = null; state.profile = null; state.myGroups = [];
+      state.showAccount = false;
+      alert("Your account and its data have been deleted.");
+      render();
+    }catch(e){
+      console.error(e);
+      d.loading = false;
+      d.error = e.message || "Couldn't delete your account right now.";
+      render();
+    }
+  }
+
+  function renderAccountPanel(){
+    const isAdmin = state.group && state.group.role === "admin";
+    const m = state.accountMembers;
+    const d = state.accountDanger;
+    return `
+      <div class="ms-shell-inner" style="max-width:640px; margin:0 auto; padding:28px 18px 60px;">
+        <div class="ms-eyebrow">Account</div>
+        <h1 class="ms-title">Settings &amp;<br/><em>account.</em></h1>
+
+        ${state.group ? `
+          <div class="ms-os-section" style="margin-top:24px;">
+            <h3>This group — ${esc(state.group.name)}</h3>
+            ${isAdmin ? `
+              <p class="ms-sub-dim">You're an admin. You can remove members or promote someone else to admin.</p>
+              ${m.error ? `<div class="ms-error">${esc(m.error)}</div>` : ""}
+              ${m.loading ? `<div class="ms-loading"><div class="ms-spinner"></div></div>` : `
+                <ul style="list-style:none; padding:0; margin:12px 0;">
+                  ${m.list.map(mem=>`
+                    <li style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px dotted rgba(18,58,114,0.15);">
+                      <span>${esc(mem.name)} ${mem.isMe ? '<em>(you)</em>' : ''} <span class="ms-os-source">— ${esc(mem.role)}</span></span>
+                      <span style="display:flex; gap:6px;">
+                        ${(!mem.isMe && mem.role !== 'admin') ? `<button class="ms-btn ms-btn-ghost" style="font-size:11px; padding:4px 10px;" data-promote="${esc(mem.userId)}">Make admin</button>` : ""}
+                        ${!mem.isMe ? `<button class="ms-btn ms-btn-ghost" style="font-size:11px; padding:4px 10px;" data-remove="${esc(mem.userId)}">Remove</button>` : ""}
+                      </span>
+                    </li>
+                  `).join("")}
+                </ul>
+              `}
+            ` : ""}
+            <button class="ms-btn ms-btn-ghost" id="ms-leave-group-btn" style="margin-top:8px;">Leave this group</button>
+          </div>
+          <hr class="ms-os-divider"/>
+        ` : ""}
+
+        <div class="ms-os-section">
+          <h3>Danger zone</h3>
+          <p class="ms-sub-dim">Deleting your account permanently removes your profile, goals, check-ins, roster entries, and uploaded one-sheets across every group — including other people's reactions and comments on your check-ins. This can't be undone.</p>
+          <input type="text" class="ms-input" id="ms-delete-confirm" placeholder="Type DELETE to confirm" value="${esc(d.confirmText)}" style="max-width:260px; margin:10px 0;"/>
+          ${d.error ? `<div class="ms-error">${esc(d.error)}</div>` : ""}
+          <div class="ms-actions">
+            <button class="ms-btn" id="ms-delete-account-btn" style="background:#b4463a; color:#fff;" ${d.loading?'disabled':''}>${d.loading ? "Deleting..." : "Delete my account"}</button>
+          </div>
+        </div>
+
+        <button class="ms-btn ms-btn-ghost" id="ms-account-close-btn" style="margin-top:28px;">← Back</button>
+      </div>
+    `;
+  }
+
+  function bindAccountPanelEvents(){
+    document.querySelectorAll("[data-remove]").forEach(btn=>{
+      btn.addEventListener("click", ()=>removeMember(btn.dataset.remove));
+    });
+    document.querySelectorAll("[data-promote]").forEach(btn=>{
+      btn.addEventListener("click", ()=>promoteMember(btn.dataset.promote));
+    });
+    const leaveBtn = document.getElementById("ms-leave-group-btn");
+    if(leaveBtn) leaveBtn.addEventListener("click", leaveCurrentGroup);
+    const confirmInput = document.getElementById("ms-delete-confirm");
+    if(confirmInput) confirmInput.addEventListener("input", e=>{ state.accountDanger.confirmText = e.target.value; });
+    const deleteBtn = document.getElementById("ms-delete-account-btn");
+    if(deleteBtn) deleteBtn.addEventListener("click", deleteMyAccount);
+    const closeBtn = document.getElementById("ms-account-close-btn");
+    if(closeBtn) closeBtn.addEventListener("click", ()=>{ state.showAccount = false; render(); });
   }
 
   function renderProfileSetup(){
@@ -4542,6 +4880,12 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   });
   const lockBtn = document.getElementById("ms-lock-btn");
   if(lockBtn) lockBtn.addEventListener("click", ()=>{ signOut(); });
+  const accountBtn = document.getElementById("ms-account-btn");
+  if(accountBtn) accountBtn.addEventListener("click", ()=>{
+    state.showAccount = true;
+    state.accountMembers = { loaded:false, loading:false, list:[], error:null };
+    render();
+  });
   const darkToggleBtn = document.getElementById("ms-dark-toggle");
   if(darkToggleBtn) darkToggleBtn.addEventListener("click", ()=>{
     state.darkMode = !state.darkMode;
@@ -4581,6 +4925,12 @@ Keep every string concise. Do not repeat things they say they've already tried. 
 
   (async function init(){
     try{
+      const handledRecovery = await consumeRecoveryLinkIfPresent();
+      if(handledRecovery){
+        state.authLoading = false;
+        render();
+        return;
+      }
       const { data } = await withTimeout(sb.auth.getSession(), 10000);
       state.session = data && data.session ? data.session : null;
       state.authLoading = false;
