@@ -1399,6 +1399,21 @@
   ];
   const LIBRARY_URL = "https://drive.google.com/drive/folders/1lPUHqWaFj8qxY5bucLf34uTBCpgos2pa?usp=sharing";
 
+  // Amazon Associates tracking tag. Fill this in once you have one from
+  // affiliate-program.amazon.com (it looks like "yourname-20"). Every "Buy on
+  // Amazon" link below — the Library list and any AI-suggested further reading —
+  // reads from this single constant, so dropping the real tag in here is the only
+  // change needed to start earning referral credit on both. Left blank, the links
+  // still work as plain (untracked) Amazon searches, so nothing breaks either way.
+  const AMAZON_ASSOCIATES_TAG = "";
+
+  function amazonBuyLink(title, author){
+    const q = encodeURIComponent([title, author].filter(Boolean).join(" "));
+    let url = `https://www.amazon.com/s?k=${q}`;
+    if(AMAZON_ASSOCIATES_TAG) url += `&tag=${encodeURIComponent(AMAZON_ASSOCIATES_TAG)}`;
+    return url;
+  }
+
   // ---------- Pillars (the six-pillar structure) ----------
   const FACETS = [
     { key:"finance", name:"Finance", desc:"Money, business, investing, career.", color:"#c9a35e" },
@@ -2029,6 +2044,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
 
       <div class="ms-eyebrow" style="margin-top:48px;">Reading List — Table of Contents</div>
       <p class="ms-sub" style="margin-bottom:20px;">Grouped by pillar. Select a title to read the full note on it — select it again to close.</p>
+      <p class="ms-sub" style="font-size:11px; opacity:0.65;">As an Amazon Associate, Mastermind may earn from qualifying purchases made through the "Buy on Amazon" links below, at no extra cost to you.</p>
       ${renderReadingListToc()}
 
       <div class="ms-footer-note">MASTERMIND · BUILT FOR MEN WHO SHOW UP FOR EACH OTHER</div>
@@ -2058,6 +2074,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
                     <div class="ms-book-title">${esc(b.title)}</div>
                     <div class="ms-book-author">${esc(b.author)}</div>
                     <p class="ms-book-desc">${esc(b.desc)}</p>
+                    <a class="ms-btn ms-btn-gold" style="display:inline-block; margin-top:8px; font-size:12px; padding:6px 14px;" href="${amazonBuyLink(b.title, b.author)}" target="_blank" rel="noopener noreferrer sponsored">Buy on Amazon ↗</a>
                   </div>
                 ` : ""}
               `;
@@ -2359,7 +2376,13 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     lines.push("");
     if(a.furtherResources && a.furtherResources.length){
       lines.push("WORTH A LOOK");
-      a.furtherResources.forEach(r=>lines.push("- " + r.title + (r.type ? " [" + r.type + "]" : "") + ": " + r.why));
+      a.furtherResources.forEach(r=>{
+        lines.push("- " + r.title + (r.type ? " [" + r.type + "]" : "") + ": " + r.why);
+        if(r.type === 'book') lines.push("  Buy on Amazon: " + amazonBuyLink(r.title));
+      });
+      if(a.furtherResources.some(r=>r.type==='book')){
+        lines.push("  (As an Amazon Associate, Mastermind may earn from qualifying purchases.)");
+      }
       lines.push("");
     }
     lines.push("POSSIBLE COMMITMENT");
@@ -2474,7 +2497,10 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       writeBullets((a.suggestions||[]).map(s=>s.text + (s.source ? " (" + s.source + ")" : "")));
       if(a.furtherResources && a.furtherResources.length){
         writeHeading("Worth a look");
-        writeBullets(a.furtherResources.map(r=>r.title + (r.type ? " [" + r.type + "]" : "") + " — " + r.why));
+        writeBullets(a.furtherResources.map(r=>r.title + (r.type ? " [" + r.type + "]" : "") + " — " + r.why + (r.type==='book' ? "  |  Buy: " + amazonBuyLink(r.title) : "")));
+        if(a.furtherResources.some(r=>r.type==='book')){
+          writeBody("As an Amazon Associate, Mastermind may earn from qualifying purchases made through the links above.");
+        }
       }
       writeHeading("Possible commitment");
       writeBody(a.commitmentPrompt || "");
@@ -2669,7 +2695,8 @@ Keep every string concise. Do not repeat things they say they've already tried. 
           <hr class="ms-os-divider"/>
           <div class="ms-os-section">
             <h3>Worth a look</h3>
-            <ul>${a.furtherResources.map(r=>`<li><strong>${esc(r.title)}</strong> <span class="ms-os-source">(${esc(r.type||'')})</span> — ${esc(r.why)}</li>`).join("")}</ul>
+            <ul>${a.furtherResources.map(r=>`<li><strong>${esc(r.title)}</strong> <span class="ms-os-source">(${esc(r.type||'')})</span> — ${esc(r.why)}${r.type==='book' ? ` <a href="${amazonBuyLink(r.title)}" target="_blank" rel="noopener noreferrer sponsored" style="white-space:nowrap;">Buy on Amazon ↗</a>` : ''}</li>`).join("")}</ul>
+            ${a.furtherResources.some(r=>r.type==='book') ? `<p class="ms-sub" style="font-size:11px; opacity:0.65; margin-top:6px;">As an Amazon Associate, Mastermind may earn from qualifying purchases made through the links above.</p>` : ''}
           </div>
           ` : ""}
           <hr class="ms-os-divider"/>
