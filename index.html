@@ -33,14 +33,22 @@
     line-height:1.55;
   }
 
-  .ms-shell{ max-width:760px; margin:0 auto; padding:0 20px 100px; }
+  .ms-shell{
+    max-width:760px; margin:0 auto;
+    padding:0 calc(20px + env(safe-area-inset-right)) calc(100px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
+  }
+
+  /* Visible, consistent focus ring for keyboard/screen-reader users, without adding
+     an outline on a plain mouse click (focus-visible already filters that). */
+  :focus-visible{ outline:2px solid var(--sky-bright); outline-offset:2px; border-radius:3px; }
+  .ms-tab-btn:focus-visible, button:focus-visible{ outline-offset:1px; }
 
   /* --- Nav / letterhead --- */
   .ms-nav{
     display:flex;
     align-items:center;
     justify-content:space-between;
-    padding:34px 0 22px;
+    padding:calc(34px + env(safe-area-inset-top)) 0 22px;
     border-bottom:1px solid var(--line);
     margin-bottom:8px;
   }
@@ -345,6 +353,26 @@
 
   .ms-actions{ display:flex; gap:12px; align-items:center; margin-top:34px; flex-wrap:wrap; }
 
+  /* --- Check-in reactions & comments (Dashboard social pressure) --- */
+  .ms-checkin-social{ margin:4px 0 14px; }
+  .ms-reaction-row{ display:flex; gap:6px; flex-wrap:wrap; }
+  .ms-reaction-chip{
+    font-family:'Inter',sans-serif; font-size:13px;
+    background:var(--sky-pale); border:1px solid var(--line); border-radius:20px;
+    padding:4px 10px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;
+    color:var(--ink-dim); transition:all .15s ease;
+  }
+  .ms-reaction-chip span{ font-family:'Space Mono',monospace; font-size:10px; }
+  .ms-reaction-chip:hover{ border-color:var(--sky-bright); }
+  .ms-reaction-chip.ms-active{ background:var(--sky-pale-2); border-color:var(--sky); color:var(--sky-deep); }
+  .ms-reaction-chip:disabled{ opacity:.4; cursor:default; }
+  .ms-comment-list{ margin-top:8px; display:flex; flex-direction:column; gap:5px; }
+  .ms-comment-item{ font-size:12.5px; color:var(--ink-dim); display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
+  .ms-comment-dot{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
+  .ms-comment-name{ font-weight:600; color:var(--ink); }
+  .ms-comment-form{ display:flex; gap:8px; margin-top:8px; }
+  .ms-comment-input{ flex:1; padding:7px 10px; font-size:13px; }
+
   /* --- One-sheet --- */
   .ms-onesheet{
     background:#ffffff;
@@ -421,10 +449,17 @@
   .ms-forge-banner{
     flex:0 0 10%; min-height:60px;
     display:flex; align-items:center; justify-content:space-between; gap:16px;
-    padding:0 20px;
+    padding:0 calc(20px + env(safe-area-inset-right)) 0 calc(20px + env(safe-area-inset-left));
     background:linear-gradient(120deg, #1a1206 0%, #3d2a04 60%, #5a3d08 100%);
     color:#fff;
     flex-wrap:wrap;
+  }
+  /* In true (not pseudo) fullscreen the banner is the top-most thing on screen,
+     so it also needs to clear a notch/camera cutout on that edge. */
+  .ms-forge-viewer:fullscreen .ms-forge-banner,
+  .ms-forge-viewer:-webkit-full-screen .ms-forge-banner,
+  .ms-forge-viewer.ms-forge-pseudo-fullscreen .ms-forge-banner{
+    padding-top:env(safe-area-inset-top);
   }
   .ms-forge-banner-name{ font-family:'Spectral',serif; font-size:17px; font-weight:600; white-space:nowrap; }
   .ms-forge-banner-title{
@@ -457,6 +492,19 @@
   .ms-forge-placeholder{
     color:#b7c2d6; font-family:'Space Mono',monospace; font-size:13px; text-align:center; padding:20px;
   }
+  .ms-forge-history{
+    margin:12px 0 4px; border:1px solid var(--line); border-radius:6px; padding:12px 16px;
+    background:var(--sky-pale); max-height:220px; overflow-y:auto;
+  }
+  .ms-forge-history-row{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    font-size:12.5px; padding:5px 0; border-bottom:1px solid var(--line);
+  }
+  .ms-forge-history-row:last-child{ border-bottom:none; }
+  .ms-forge-history-name{ font-weight:600; color:var(--ink); }
+  .ms-forge-history-dur{ font-family:'Space Mono',monospace; color:var(--sky-deep); }
+  .ms-forge-history-date{ color:var(--ink-dim); margin-left:auto; }
+  .ms-forge-history-pdf{ color:var(--ink-dim); font-size:11.5px; }
   .ms-forge-clock{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .ms-forge-mode-toggle{ display:flex; gap:2px; }
   .ms-forge-mode-btn{
@@ -1153,9 +1201,10 @@
         <button class="ms-tab-btn" data-tab="home">Mastermind</button>
         <button class="ms-tab-btn" data-tab="roundtable">Roundtable</button>
         <button class="ms-tab-btn" data-tab="about">About</button>
-        <button class="ms-tab-btn" id="ms-profile-nav-btn" title="Set up your profile" style="display:none;">👤</button>
-        <button class="ms-tab-btn" id="ms-dark-toggle" title="Toggle dark mode">🌙</button>
-        <button class="ms-tab-btn" id="ms-lock-btn" title="Lock this site">🔒</button>
+        <button class="ms-tab-btn" id="ms-profile-nav-btn" title="Set up your profile" aria-label="Set up your profile" style="display:none;">👤</button>
+        <button class="ms-tab-btn" id="ms-notify-toggle" title="Reminders" aria-label="Toggle reminders"></button>
+        <button class="ms-tab-btn" id="ms-dark-toggle" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
+        <button class="ms-tab-btn" id="ms-lock-btn" title="Lock this site" aria-label="Lock this site">🔒</button>
       </div>
     </div>
     <div id="ms-app"></div>
@@ -1277,6 +1326,8 @@
   const UNLOCK_STORAGE_KEY = "mastermind:unlocked";
   const DARKMODE_STORAGE_KEY = "mastermind:darkmode";
   const NEXT_SESSION_KEY = "mastermind:nextsession";
+  const NOTIFY_PREF_KEY = "mastermind:notifypref";
+  const NOTIFY_LASTSEEN_KEY = "mastermind:notifylastseen"; // dedupe so reminders fire once a day, not every poll
   // Change this to your group's shared passphrase. Note: this is a light
   // deterrent, not real security — anyone who views this page's source can
   // read it. Fine for keeping a link off casual/uninvited eyes, not for
@@ -1289,6 +1340,8 @@
   const PROGRESS_PREFIX = "mastermind:progress:";
   const PDF_PREFIX = "mastermind:onesheetpdf:";
   const PDF_INDEX_KEY = "mastermind:onesheetpdfindex";
+  const FORGE_HISTORY_KEY = "mastermind:forgehistory";
+  const FORGE_HISTORY_MAX = 60;
   const MAX_PDF_BYTES = 3.5 * 1024 * 1024;
 
   const PROFILE_COLORS = [
@@ -1421,6 +1474,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
     passInput: "",
     passError: false,
     darkMode: false,
+    notifyEnabled: false,
     listening: false,
     chat: { messages:[], input:"", loading:false, error:null, pendingFiles:[] },
     rosterCount: 0,
@@ -1439,7 +1493,9 @@ When advising: identify which pillar(s) above are actually relevant to the speci
       goalForm: null,        // { parentId:null|id, title:"", metricName:"", metricUnit:"", targetValue:"", deadline:"", editingId:null }
       checkinForm: null,     // { text:"", loading:false, error:null }
       profileForm: null,     // { name:"", color:"", error:null }
-      expandedGoalId: null
+      expandedGoalId: null,
+      commentBoxFor: null,   // checkin id currently showing its comment input
+      commentInput: ""
     },
     about: { openBooks: new Set() },
     forge: {
@@ -1452,6 +1508,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
       uploadError: null,
       pseudoFullscreen: false,
       clockMode: 'stopwatch', showLaps:false,
+      showHistory:false, history:[], historyLoading:false,
       sw: { running:false, elapsedMs:0, lastStart:null, laps:[] },
       timer: { running:false, remainingMs:0, totalMs:0, lastTick:null, inputMinutes:"5", inputSeconds:"0", done:false }
     },
@@ -1514,6 +1571,95 @@ When advising: identify which pillar(s) above are actually relevant to the speci
 
   function esc(s){ const d=document.createElement("div"); d.textContent = s==null?"":s; return d.innerHTML; }
 
+  // Light haptic feedback on key confirmations (profile saved, goal logged, check-in
+  // submitted, timer done...). navigator.vibrate only exists on Android Chrome/Firefox
+  // today — iOS Safari has no web vibration API — so this is always a no-op there,
+  // feature-detected and wrapped so it can never throw or block anything.
+  function haptic(pattern){
+    try{ if(navigator && typeof navigator.vibrate === "function") navigator.vibrate(pattern || 12); }catch(e){}
+  }
+
+  // --- Local reminders ---------------------------------------------------------
+  // Real push notifications (ones that arrive even with the tab/app fully closed)
+  // need a backend push service and VAPID keys to talk to — there's nothing here
+  // to hang that off, so this is deliberately a lighter thing: while the app is
+  // open (including as an installed PWA you've opened that day), it can nudge you
+  // about a session tomorrow or a check-in that's overdue. It never fires silently
+  // in the background once the tab is closed.
+  function notifyLocal(title, body){
+    try{
+      if(!state.notifyEnabled) return;
+      if(!("Notification" in window) || Notification.permission !== "granted") return;
+      const n = new Notification(title, { body: body, tag: title }); // tag: re-using one lets the OS collapse repeats
+      n.onclick = () => { try{ window.focus(); }catch(e){} };
+    }catch(e){ /* notifications are a nice-to-have, never block anything on failure */ }
+  }
+
+  async function setNotifyPref(enabled){
+    state.notifyEnabled = enabled;
+    try{ await window.storage.set(NOTIFY_PREF_KEY, enabled ? "true" : "false", false); }catch(e){}
+  }
+
+  async function toggleNotifications(){
+    if(!("Notification" in window)){
+      alert("This browser doesn't support notifications.");
+      return;
+    }
+    if(state.notifyEnabled){
+      await setNotifyPref(false);
+      render();
+      return;
+    }
+    try{
+      const perm = await Notification.requestPermission();
+      if(perm === "granted"){
+        await setNotifyPref(true);
+        notifyLocal("Reminders on", "You'll get a nudge here when a session's coming up or a check-in's overdue.");
+      } else {
+        alert("Notifications are blocked — you can turn them on later from your browser's site settings.");
+      }
+    }catch(e){ console.error(e); }
+    render();
+  }
+
+  // Checked once on load and again whenever the Dashboard is opened. Each kind of
+  // reminder is deduped by day so re-opening the app doesn't re-fire it.
+  async function checkReminders(){
+    if(!state.notifyEnabled) return;
+    let lastSeen = {};
+    try{
+      const res = await window.storage.get(NOTIFY_LASTSEEN_KEY, false);
+      if(res && res.value) lastSeen = JSON.parse(res.value);
+    }catch(e){}
+    const today = new Date().toDateString();
+    let changed = false;
+
+    if(state.nextSession){
+      const sessionDate = new Date(state.nextSession + "T00:00:00");
+      const hoursAway = (sessionDate.getTime() - Date.now()) / (1000*60*60);
+      if(hoursAway > 0 && hoursAway <= 24 && lastSeen.session !== state.nextSession){
+        notifyLocal("Session tomorrow", "The next Mastermind session is coming up — get your one-sheet ready.");
+        lastSeen.session = state.nextSession; changed = true;
+      }
+    }
+
+    if(state.profile){
+      try{
+        const progress = await loadMyProgress();
+        const last = progress.checkins && progress.checkins.length ? Math.max(...progress.checkins.map(c=>c.at)) : null;
+        const daysSince = last ? (Date.now()-last)/(1000*60*60*24) : Infinity;
+        if(daysSince >= 9 && lastSeen.checkin !== today){
+          notifyLocal("Check-in overdue", "It's been a while — log a weekly check-in to keep your streak honest.");
+          lastSeen.checkin = today; changed = true;
+        }
+      }catch(e){}
+    }
+
+    if(changed){
+      try{ await window.storage.set(NOTIFY_LASTSEEN_KEY, JSON.stringify(lastSeen), false); }catch(e){}
+    }
+  }
+
   // Some Android file pickers/apps report an empty or generic MIME type (e.g. "" or
   // "application/octet-stream") for PDFs instead of "application/pdf" — trust the
   // extension too, or valid PDFs get rejected outright on those devices.
@@ -1537,6 +1683,38 @@ When advising: identify which pillar(s) above are actually relevant to the speci
       const d = new Date(dateStr + "T00:00:00");
       return d.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
     }catch(e){ return dateStr; }
+  }
+
+  // Builds a one-event .ics file for the next session and triggers a download —
+  // works with every calendar app (Apple/Google/Outlook) without needing any of
+  // them connected, since it's just a standard file the OS hands off to whichever
+  // calendar app is already the device's default.
+  function downloadSessionIcs(dateStr){
+    try{
+      const d = new Date(dateStr + "T00:00:00");
+      const pad = n => String(n).padStart(2,'0');
+      const dateOnly = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+      const nextDay = new Date(d); nextDay.setDate(nextDay.getDate()+1);
+      const dateOnlyEnd = `${nextDay.getFullYear()}${pad(nextDay.getMonth()+1)}${pad(nextDay.getDate())}`;
+      const stamp = `${new Date().toISOString().replace(/[-:]/g,'').split('.')[0]}Z`;
+      const ics = [
+        "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Mastermind//Roundtable//EN","CALSCALE:GREGORIAN",
+        "BEGIN:VEVENT",
+        `UID:mastermind-session-${dateOnly}@mastermind.local`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART;VALUE=DATE:${dateOnly}`,
+        `DTEND;VALUE=DATE:${dateOnlyEnd}`,
+        "SUMMARY:Mastermind Session",
+        "DESCRIPTION:Bring your one-sheet — check the Roundtable before you arrive.",
+        "END:VEVENT","END:VCALENDAR"
+      ].join("\r\n");
+      const blob = new Blob([ics], { type: "text/calendar" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "mastermind-session.ics";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    }catch(e){ console.error(e); alert("Couldn't build the calendar file."); }
   }
 
   // ---------- Text-to-speech ----------
@@ -1947,7 +2125,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
         ` : ""}
 
         <div class="ms-chat-input-row">
-          <button class="ms-btn ms-btn-ghost ms-attach-btn" id="ms-chat-attach" type="button" title="Attach an image or PDF">${clipIcon()}</button>
+          <button class="ms-btn ms-btn-ghost ms-attach-btn" id="ms-chat-attach" type="button" title="Attach an image or PDF" aria-label="Attach an image or PDF">${clipIcon()}</button>
           <input type="file" id="ms-chat-file" accept="image/*,application/pdf" multiple style="display:none;"/>
           ${canListen ? `<button class="ms-btn ms-btn-ghost ms-attach-btn ms-mic-btn ${state.listening?'ms-listening':''}" id="ms-chat-mic" type="button" title="${state.listening?'Stop listening':'Speak your message'}">${micIcon(state.listening)}</button>` : ""}
           <textarea class="ms-input" id="ms-chat-input" placeholder="e.g. I keep avoiding a hard conversation with my business partner — how do I approach it?">${esc(state.chat.input)}</textarea>
@@ -2366,6 +2544,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
           <span class="ms-session-label">Next session:</span>
           <span class="ms-session-value">${state.nextSession && state.nextSession.date ? esc(formatSessionDate(state.nextSession.date)) : "Not set yet"}</span>
           <button class="ms-session-edit-btn" id="ms-session-edit">${state.nextSession && state.nextSession.date ? "Update" : "Set a date"}</button>
+          ${state.nextSession && state.nextSession.date ? `<button class="ms-session-edit-btn" id="ms-session-ics">Add to calendar</button>` : ""}
         `}
       </div>
 
@@ -2584,8 +2763,8 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     return `
       <div class="ms-forge-clock">
         <div class="ms-forge-mode-toggle">
-          <button class="ms-forge-mode-btn ${mode==='stopwatch'?'ms-active':''}" id="ms-forge-mode-sw" title="Stopwatch">⏱</button>
-          <button class="ms-forge-mode-btn ${mode==='timer'?'ms-active':''}" id="ms-forge-mode-timer" title="Timer">⏲</button>
+          <button class="ms-forge-mode-btn ${mode==='stopwatch'?'ms-active':''}" id="ms-forge-mode-sw" title="Stopwatch" aria-label="Switch to stopwatch">⏱</button>
+          <button class="ms-forge-mode-btn ${mode==='timer'?'ms-active':''}" id="ms-forge-mode-timer" title="Timer" aria-label="Switch to timer">⏲</button>
         </div>
         <span id="ms-forge-clock-display" class="ms-forge-clock-display">${esc(display)}</span>
         <div class="ms-forge-clock-controls" style="position:relative;">
@@ -2611,24 +2790,29 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       <h1 class="ms-title">Welcome to <em>The Forge.</em></h1>
       <p class="ms-sub">Pull up whoever's in the hot seat, put their one-sheet on screen, and keep time on their turn. You can also just upload a PDF to look at — you don't need to pick anyone first.</p>
 
-      <div class="ms-field-wrap" style="margin-left:0; max-width:360px;">
-        <select id="ms-forge-entry-select" class="ms-input">
-          <option value="">— Choose who's up —</option>
-          ${people.map((p,i)=>`<option value="${i}" ${(!state.forge.showNewNameInput && state.forge.selectedName===p.name && state.forge.selectedEntryId===p.entryId)?'selected':''}>${esc(p.name)}${p.hasPdf?' 📄':''}</option>`).join("")}
-          <option value="__new__" ${state.forge.showNewNameInput?'selected':''}>+ Someone new...</option>
-        </select>
-        ${state.forge.showNewNameInput ? `<input type="text" class="ms-input" id="ms-forge-new-name" placeholder="Type their name" value="${esc(state.forge.newNameInput)}" style="margin-top:10px;"/>` : ""}
-        ${state.forge.peopleLoading ? `<p class="ms-help" style="margin-left:0;">Loading everyone...</p>` : ""}
-        ${(!people.length && !state.forge.peopleLoading) ? `<p class="ms-help" style="margin-left:0;">No profiles or one-sheets yet — type a new name above, or upload a PDF directly below.</p>` : ""}
+      <div class="ms-field-wrap" style="margin-left:0; max-width:360px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+        <div style="flex:1; min-width:0;">
+          <select id="ms-forge-entry-select" class="ms-input">
+            <option value="">— Choose who's up —</option>
+            ${people.map((p,i)=>`<option value="${i}" ${(!state.forge.showNewNameInput && state.forge.selectedName===p.name && state.forge.selectedEntryId===p.entryId)?'selected':''}>${esc(p.name)}${p.hasPdf?' 📄':''}</option>`).join("")}
+            <option value="__new__" ${state.forge.showNewNameInput?'selected':''}>+ Someone new...</option>
+          </select>
+          ${state.forge.showNewNameInput ? `<input type="text" class="ms-input" id="ms-forge-new-name" placeholder="Type their name" value="${esc(state.forge.newNameInput)}" style="margin-top:10px;"/>` : ""}
+          ${state.forge.peopleLoading ? `<p class="ms-help" style="margin-left:0;">Loading everyone...</p>` : ""}
+          ${(!people.length && !state.forge.peopleLoading) ? `<p class="ms-help" style="margin-left:0;">No profiles or one-sheets yet — type a new name above, or upload a PDF directly below.</p>` : ""}
+        </div>
+        <button type="button" class="ms-btn ms-btn-ghost" id="ms-forge-history-toggle" style="white-space:nowrap; font-size:11px; padding:8px 12px;">${state.forge.showHistory ? "Hide history" : "Session history"}</button>
       </div>
+      ${forgeHistoryHtml()}
 
       <div class="ms-forge-viewer ${state.forge.pseudoFullscreen ? 'ms-forge-pseudo-fullscreen' : ''}" id="ms-forge-viewer">
         <div class="ms-forge-banner">
           <div class="ms-forge-banner-name" id="ms-forge-banner-name-text">${state.forge.selectedName ? esc(state.forge.selectedName) : "No one selected"}</div>
           <div class="ms-forge-banner-title">The Forge</div>
           ${forgeClockControlsHtml()}
-          <button class="ms-btn ms-btn-ghost ms-attach-btn ms-forge-clip-btn" id="ms-forge-clip-btn" type="button" title="Upload a PDF to view">${clipIcon()}</button>
-          <button class="ms-btn ms-btn-ghost ms-forge-fullscreen-btn" id="ms-forge-fullscreen-btn" title="Full screen">⛶</button>
+          <button class="ms-btn ms-btn-ghost ms-forge-log-btn" id="ms-forge-log-btn" type="button" title="Log this turn to the session history" aria-label="Log this turn to the session history">📋</button>
+          <button class="ms-btn ms-btn-ghost ms-attach-btn ms-forge-clip-btn" id="ms-forge-clip-btn" type="button" title="Upload a PDF to view" aria-label="Upload a PDF">${clipIcon()}</button>
+          <button class="ms-btn ms-btn-ghost ms-forge-fullscreen-btn" id="ms-forge-fullscreen-btn" title="Full screen" aria-label="Toggle full screen">⛶</button>
         </div>
         <input type="file" id="ms-forge-pdf-file" accept="application/pdf,.pdf" style="display:none;"/>
         ${hasBoth ? `
@@ -2638,14 +2822,14 @@ Keep every string concise. Do not repeat things they say they've already tried. 
               <button type="button" class="ms-forge-source-btn ${activeSource==='profile'?'ms-active':''}" id="ms-forge-source-profile">Their one-sheet</button>
               <button type="button" class="ms-forge-source-btn ${activeSource==='manual'?'ms-active':''}" id="ms-forge-source-manual">Uploaded PDF</button>
             </div>
-            <button type="button" class="ms-forge-source-remove" id="ms-forge-remove-manual" title="Discard the uploaded PDF">✕</button>
+            <button type="button" class="ms-forge-source-remove" id="ms-forge-remove-manual" title="Discard the uploaded PDF" aria-label="Discard the uploaded PDF">✕</button>
           </div>
         ` : ""}
         <div class="ms-forge-pdf-area" id="ms-forge-pdf-area">
           ${state.forge.profilePdfLoading && !state.forge.manualPdf ? `<div class="ms-loading" style="color:#dce6f5;"><div class="ms-spinner"></div>Loading one-sheet...</div>` : ""}
           ${(!state.forge.profilePdfLoading || state.forge.manualPdf) && activePdf ? `
             <iframe id="ms-forge-pdf-frame" class="ms-forge-pdf-frame" src="${activePdf.objectUrl}" title="PDF viewer"></iframe>
-            <a class="ms-forge-pdf-download" href="${activePdf.objectUrl}" download="${esc(activePdf.name || 'one-sheet.pdf')}" title="Download this PDF">⬇</a>
+            <a class="ms-forge-pdf-download" href="${activePdf.objectUrl}" download="${esc(activePdf.name || 'one-sheet.pdf')}" title="Download this PDF" aria-label="Download this PDF">⬇</a>
           ` : ""}
           ${!state.forge.profilePdfLoading && !activePdf ? `
             <div class="ms-forge-placeholder">
@@ -2690,9 +2874,77 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     render();
   }
 
+  // ---------- Session history log ----------
+  // A simple shared log of who's had the hot seat and for how long — gives the
+  // group a record across sessions without needing a separate "sessions" backend.
+  async function loadForgeHistory(){
+    state.forge.historyLoading = true; render();
+    try{
+      const res = await window.storage.get(FORGE_HISTORY_KEY, true);
+      state.forge.history = res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){ state.forge.history = []; }
+    state.forge.historyLoading = false; render();
+  }
+
+  async function logForgeTurn(){
+    const sw = state.forge.sw, t = state.forge.timer;
+    let durationMs = 0;
+    if(state.forge.clockMode === 'stopwatch'){
+      durationMs = sw.running ? sw.elapsedMs + (Date.now()-sw.lastStart) : sw.elapsedMs;
+    } else {
+      durationMs = t.totalMs ? (t.totalMs - t.remainingMs) : 0;
+    }
+    const activePdf = forgeActivePdf();
+    const entry = {
+      id: 'h'+Date.now(),
+      at: Date.now(),
+      name: state.forge.selectedName || "Unnamed turn",
+      durationMs: Math.max(0, Math.round(durationMs)),
+      pdfName: activePdf ? (activePdf.name || null) : null
+    };
+    try{
+      const res = await window.storage.get(FORGE_HISTORY_KEY, true).catch(()=>null);
+      const list = res && res.value ? JSON.parse(res.value) : [];
+      list.unshift(entry);
+      while(list.length > FORGE_HISTORY_MAX) list.pop();
+      await window.storage.set(FORGE_HISTORY_KEY, JSON.stringify(list), true);
+      state.forge.history = list;
+      haptic(10);
+    }catch(e){ console.error("Couldn't save session history:", e); }
+    render();
+  }
+
+  function forgeHistoryHtml(){
+    if(!state.forge.showHistory) return "";
+    const list = state.forge.history || [];
+    return `
+      <div class="ms-forge-history">
+        ${state.forge.historyLoading ? `<p class="ms-help" style="margin-left:0;">Loading history...</p>` : ""}
+        ${(!state.forge.historyLoading && !list.length) ? `<p class="ms-help" style="margin-left:0;">No sessions logged yet — hit "Log this turn" once someone's had the floor.</p>` : ""}
+        ${list.map(h=>`
+          <div class="ms-forge-history-row">
+            <span class="ms-forge-history-name">${esc(h.name)}</span>
+            <span class="ms-forge-history-dur">${formatClock(h.durationMs)}</span>
+            <span class="ms-forge-history-date">${new Date(h.at).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span>
+            ${h.pdfName ? `<span class="ms-forge-history-pdf">📄 ${esc(h.pdfName)}</span>` : ""}
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
   function bindRtForgeEvents(){
     const backBtn = document.getElementById("ms-rt-forge-back");
     if(backBtn) backBtn.addEventListener("click", ()=>{ state.rt.view="form"; render(); });
+
+    const historyToggleBtn = document.getElementById("ms-forge-history-toggle");
+    if(historyToggleBtn) historyToggleBtn.addEventListener("click", ()=>{
+      state.forge.showHistory = !state.forge.showHistory;
+      if(state.forge.showHistory && !state.forge.history.length) loadForgeHistory();
+      else render();
+    });
+    const logBtn = document.getElementById("ms-forge-log-btn");
+    if(logBtn) logBtn.addEventListener("click", logForgeTurn);
 
     const select = document.getElementById("ms-forge-entry-select");
     if(select) select.addEventListener("change", e=>{
@@ -2842,6 +3094,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   async function saveProfile(name, colorKey){
     const profile = { id: name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-'), name: name.trim(), color: colorKey, createdAt: Date.now() };
     state.profile = profile; // let them in right away — persistence below is best-effort, never a gate to entry
+    haptic(14);
     try{
       await window.storage.set(PROFILE_KEY, JSON.stringify(profile), false);
     }catch(e){ console.error("Couldn't save profile locally:", e); }
@@ -2947,6 +3200,47 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       state.dash.error = "Couldn't load the dashboard right now.";
     }
     state.dash.loading = false; render();
+    checkReminders().catch(()=>{});
+  }
+
+  const REACTION_EMOJI = ["👍","🔥","💪","👏"];
+
+  // Reactions/comments on a check-in are written by OTHER members, directly into
+  // the owning member's shared progress record — there's no separate "activity"
+  // store, so this just loads that one record, mutates the one check-in, and saves
+  // it straight back. Best-effort: a failed save just gets silently retried next tap.
+  async function mutateCheckin(targetProfileId, checkinId, mutator){
+    try{
+      const res = await window.storage.get(PROGRESS_PREFIX + targetProfileId, true);
+      if(!res || !res.value) return;
+      const progress = JSON.parse(res.value);
+      const c = (progress.checkins||[]).find(c=>c.id===checkinId);
+      if(!c) return;
+      if(!c.reactions) c.reactions = {};
+      if(!c.comments) c.comments = [];
+      mutator(c);
+      await window.storage.set(PROGRESS_PREFIX + targetProfileId, JSON.stringify(progress), true);
+    }catch(e){ console.error("Couldn't save reaction/comment:", e); }
+  }
+
+  async function toggleCheckinReaction(targetProfileId, checkinId, emoji){
+    if(!state.profile) return;
+    const myId = state.profile.id;
+    haptic(10);
+    await mutateCheckin(targetProfileId, checkinId, (c)=>{
+      const list = c.reactions[emoji] || (c.reactions[emoji] = []);
+      const idx = list.indexOf(myId);
+      if(idx === -1) list.push(myId); else list.splice(idx, 1);
+    });
+    await loadDashboard();
+  }
+
+  async function addCheckinComment(targetProfileId, checkinId, text){
+    if(!state.profile || !text || !text.trim()) return;
+    const comment = { by: state.profile.id, byName: state.profile.name, byColor: state.profile.color, text: text.trim(), at: Date.now() };
+    haptic(10);
+    await mutateCheckin(targetProfileId, checkinId, (c)=>{ c.comments.push(comment); });
+    await loadDashboard();
   }
 
   // ---------- One-sheet PDF uploads ----------
@@ -3092,6 +3386,8 @@ Keep every string concise. Do not repeat things they say they've already tried. 
           el.textContent = formatClock(remaining);
           if(remaining<=0 && !t.done){
             t.done = true; t.running = false; t.remainingMs = 0;
+            haptic([80,60,80,60,80]);
+            notifyLocal("Time's up", "The Forge timer just finished.");
             render();
           }
         } else {
@@ -3233,9 +3529,10 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       const userText = `Member: ${state.profile.name}\n\nCurrent goals:\n${goalSummary}\n\nThis week's update from the member:\n${f.text.trim()}`;
       const text = await callMentor(sys, userText, 500);
       const result = parseJson(text);
-      progress.checkins.push({ id:'c'+Date.now(), at: Date.now(), note: f.text.trim(), ...result });
+      progress.checkins.push({ id:'c'+Date.now(), at: Date.now(), note: f.text.trim(), reactions:{}, comments:[], ...result });
       await saveMyProgress(progress);
       state.dash.checkinForm = null;
+      haptic(14);
       await loadDashboard();
     }catch(e){
       console.error(e);
@@ -3275,6 +3572,8 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     }
     const darkToggleBtn = document.getElementById("ms-dark-toggle");
     if(darkToggleBtn) darkToggleBtn.textContent = state.darkMode ? "☀️" : "🌙";
+    const notifyToggleBtn = document.getElementById("ms-notify-toggle");
+    if(notifyToggleBtn) notifyToggleBtn.textContent = state.notifyEnabled ? "🔔" : "🔕";
     const profileNavBtn = document.getElementById("ms-profile-nav-btn");
     if(profileNavBtn) profileNavBtn.style.display = state.profile ? "none" : "";
 
@@ -3463,6 +3762,44 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     return goals.filter(g => (g.visibility || 'public') === 'public');
   }
 
+  // Reaction chips + comment thread under a member's latest check-in — this is the
+  // "social pressure" the Dashboard is for: the group sees it and can weigh in.
+  function checkinSocialHtml(profile, checkin){
+    const myId = state.profile ? state.profile.id : null;
+    const reactions = checkin.reactions || {};
+    const comments = checkin.comments || [];
+    const boxOpen = state.dash.commentBoxFor === checkin.id;
+    return `
+      <div class="ms-checkin-social" data-profile-id="${esc(profile.id)}" data-checkin-id="${esc(checkin.id)}">
+        <div class="ms-reaction-row">
+          ${REACTION_EMOJI.map(emoji=>{
+            const list = reactions[emoji] || [];
+            const active = myId && list.includes(myId);
+            return `<button type="button" class="ms-reaction-chip ${active?'ms-active':''}" data-emoji="${emoji}" ${myId?'':'disabled title="Set up a profile to react"'}>${emoji}${list.length?` <span>${list.length}</span>`:''}</button>`;
+          }).join("")}
+          <button type="button" class="ms-reaction-chip ms-comment-toggle" ${myId?'':'disabled title="Set up a profile to comment"'}>💬${comments.length?` <span>${comments.length}</span>`:''}</button>
+        </div>
+        ${comments.length ? `
+          <div class="ms-comment-list">
+            ${comments.map(c=>`
+              <div class="ms-comment-item">
+                <span class="ms-comment-dot" style="background:${colorHex(c.byColor)};"></span>
+                <span class="ms-comment-name">${esc(c.byName)}</span>
+                <span class="ms-comment-text">${esc(c.text)}</span>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
+        ${boxOpen && myId ? `
+          <div class="ms-comment-form">
+            <input type="text" class="ms-input ms-comment-input" placeholder="Say something..." value="${esc(state.dash.commentInput)}" maxlength="240"/>
+            <button type="button" class="ms-btn ms-btn-gold ms-comment-send" style="padding:7px 14px; font-size:11px;">Send</button>
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }
+
   function memberCardHtml(member){
     const { profile, progress } = member;
     const isMine = state.profile && profile.id === state.profile.id;
@@ -3481,6 +3818,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
         </div>
         <p class="ms-sub-dim">${lastCheckin ? `Last check-in ${new Date(lastCheckin.at).toLocaleDateString(undefined,{month:'short',day:'numeric'})}: ${esc(lastCheckin.summary || '')}` : "No check-ins yet."}</p>
         ${lastCheckin ? `<p class="ms-sub-dim" style="margin-top:-4px;"><em>Short-term:</em> ${esc(lastCheckin.onTrackShort||'')} &nbsp; <em>Long-term:</em> ${esc(lastCheckin.onTrackLong||'')}</p>` : ""}
+        ${lastCheckin ? checkinSocialHtml(profile, lastCheckin) : ""}
         ${topGoals.length ? topGoals.map(g=>goalCardHtml(g, visibleGoals, isMine)).join("") : `<p class="ms-help" style="margin-left:0;">${isMine ? "No goals set yet — add one below." : "No public goals shared yet."}</p>`}
         ${isMine ? `
           <div class="ms-actions" style="margin-top:16px;">
@@ -3715,6 +4053,33 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     });
     const profileEditCancel = document.getElementById("ms-profile-edit-cancel");
     if(profileEditCancel) profileEditCancel.addEventListener("click", ()=>{ state.dash.profileForm = null; render(); });
+
+    document.querySelectorAll(".ms-checkin-social[data-profile-id]").forEach(wrap=>{
+      const targetProfileId = wrap.dataset.profileId;
+      const checkinId = wrap.dataset.checkinId;
+      wrap.querySelectorAll(".ms-reaction-chip[data-emoji]").forEach(chip=>{
+        chip.addEventListener("click", ()=>toggleCheckinReaction(targetProfileId, checkinId, chip.dataset.emoji));
+      });
+      const commentToggle = wrap.querySelector(".ms-comment-toggle");
+      if(commentToggle) commentToggle.addEventListener("click", ()=>{
+        state.dash.commentBoxFor = state.dash.commentBoxFor === checkinId ? null : checkinId;
+        state.dash.commentInput = "";
+        render();
+      });
+      const commentInput = wrap.querySelector(".ms-comment-input");
+      if(commentInput){
+        commentInput.addEventListener("input", e=>{ state.dash.commentInput = e.target.value; });
+        commentInput.addEventListener("keydown", e=>{
+          if(e.key === "Enter"){ e.preventDefault(); addCheckinComment(targetProfileId, checkinId, state.dash.commentInput); state.dash.commentBoxFor = null; state.dash.commentInput = ""; }
+        });
+        commentInput.focus();
+      }
+      const commentSend = wrap.querySelector(".ms-comment-send");
+      if(commentSend) commentSend.addEventListener("click", ()=>{
+        addCheckinComment(targetProfileId, checkinId, state.dash.commentInput);
+        state.dash.commentBoxFor = null; state.dash.commentInput = "";
+      });
+    });
   }
 
   function bindHomeEvents(){
@@ -3793,6 +4158,8 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     });
     const sessionDateInputEl = document.getElementById("ms-session-date-input");
     if(sessionDateInputEl) sessionDateInputEl.addEventListener("input", e=>{ state.sessionDateInput = e.target.value; });
+    const icsBtn = document.getElementById("ms-session-ics");
+    if(icsBtn) icsBtn.addEventListener("click", ()=>downloadSessionIcs(state.nextSession.date));
     const nameInput = document.getElementById("ms-rt-name");
     if(nameInput){
       nameInput.addEventListener("input", e=>{ state.rt.name = e.target.value; state.rt.lastEntryChecked = false; });
@@ -3901,6 +4268,8 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     window.storage.set(DARKMODE_STORAGE_KEY, state.darkMode ? "true" : "false", false).catch(()=>{});
     render();
   });
+  const notifyToggleBtn = document.getElementById("ms-notify-toggle");
+  if(notifyToggleBtn) notifyToggleBtn.addEventListener("click", toggleNotifications);
 
   document.addEventListener('keydown', (e)=>{
     if(e.key === 'Escape' && state.forge.pseudoFullscreen){
@@ -3925,6 +4294,12 @@ Keep every string concise. Do not repeat things they say they've already tried. 
         const darkRes = await withTimeout(window.storage.get(DARKMODE_STORAGE_KEY, false), 10000);
         if(darkRes && darkRes.value === "true") state.darkMode = true;
       }catch(e){ /* default light */ }
+      try{
+        const notifyRes = await withTimeout(window.storage.get(NOTIFY_PREF_KEY, false), 10000);
+        if(notifyRes && notifyRes.value === "true" && "Notification" in window && Notification.permission === "granted"){
+          state.notifyEnabled = true;
+        }
+      }catch(e){ /* default off */ }
       if(state.unlocked){
         await withTimeout(loadChatHistory(), 10000).catch(()=>{});
         await withTimeout(loadProfile(), 10000).catch(()=>{});
@@ -3934,6 +4309,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       console.error("Init error:", e);
     }
     render();
+    checkReminders().catch(()=>{});
   })();
 })();
 </script>
