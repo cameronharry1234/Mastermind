@@ -1568,6 +1568,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
     agreedToTerms: false,   // signup consent checkbox
     accountMembers: { loaded:false, loading:false, list:[], error:null },
     accountDanger: { confirmText:"", loading:false, error:null },
+    billing: { loaded:false, loading:false, status:null, trialEndsAt:null, currentPeriodEnd:null, checkoutLoading:false, error:null },
     group: null,            // the active group: { id, name, invite_code, role }
     myGroups: [],           // every group this account belongs to
     groupForm: { mode:"create", name:"", code:"", error:null, loading:false },
@@ -1933,7 +1934,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
   // here ever talks to api.anthropic.com directly.
   async function callAiProxy(system, messages, maxTokens){
     const { data, error } = await sb.functions.invoke("mentor", {
-      body: { system, messages, maxTokens }
+      body: { system, messages, maxTokens, groupId: state.group ? state.group.id : null }
     });
     if(error){
       // supabase-js puts non-2xx responses here; try to surface the function's own message.
@@ -3787,6 +3788,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       app.innerHTML = renderAccountPanel();
       bindAccountPanelEvents();
       if(!state.accountMembers.loaded && !state.accountMembers.loading) loadAccountMembers();
+      if(!state.billing.loaded && !state.billing.loading) loadBilling();
       return;
     }
 
@@ -4186,6 +4188,70 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   }
 
   // ---------- Account panel: group admin controls + account deletion ----------
+  async function loadBilling(){
+    if(!state.group) return;
+    state.billing.loading = true; state.billing.error = null; render();
+    try{
+      const { data, error } = await sb.from("subscriptions").select("status,trial_ends_at,current_period_end").eq("group_id", state.group.id).maybeSingle();
+      if(error) throw error;
+      state.billing = {
+        loaded:true, loading:false, checkoutLoading:false, error:null,
+        status: data ? data.status : null,
+        trialEndsAt: data && data.trial_ends_at ? data.trial_ends_at : null,
+        currentPeriodEnd: data && data.current_period_end ? data.current_period_end : null,
+      };
+    }catch(e){
+      console.error(e);
+      state.billing = { loaded:true, loading:false, checkoutLoading:false, error:"Couldn't load billing status.", status:null, trialEndsAt:null, currentPeriodEnd:null };
+    }
+    render();
+  }
+
+  function billingStatusLabel(){
+    const b = state.billing;
+    if(!b.status) return "Unknown";
+    if(b.status === "trialing"){
+      const end = b.trialEndsAt ? new Date(b.trialEndsAt) : null;
+      const daysLeft = end ? Math.max(0, Math.ceil((end.getTime() - Date.now()) / 86400000)) : null;
+      return daysLeft !== null ? `Free trial — ${daysLeft} day${daysLeft===1?'':'s'} left` : "Free trial";
+    }
+    if(b.status === "active") return "Active — AI mentor unlocked";
+    if(b.status === "past_due") return "Payment failed — please update your card";
+    if(b.status === "canceled") return "Canceled";
+    return b.status;
+  }
+
+  async function startCheckout(){
+    const b = state.billing;
+    if(b.checkoutLoading) return;
+    b.checkoutLoading = true; b.error = null; render();
+    try{
+      const base = window.location.origin + window.location.pathname;
+      const { data, error } = await sb.functions.invoke("create-checkout-session", {
+        body: { groupId: state.group.id, successUrl: base, cancelUrl: base }
+      });
+      if(error){
+        let msg = error.message || "Couldn't start checkout.";
+        try{
+          const ctx = error.context;
+          if(ctx && typeof ctx.json === "function"){
+            const body = await ctx.json();
+            if(body && body.error) msg = body.error;
+          }
+        }catch(_e){}
+        throw new Error(msg);
+      }
+      if(data && data.error) throw new Error(data.error);
+      if(data && data.url){ window.location.href = data.url; return; }
+      throw new Error("Checkout didn't return a redirect URL.");
+    }catch(e){
+      console.error(e);
+      b.checkoutLoading = false;
+      b.error = e.message || "Couldn't start checkout.";
+      render();
+    }
+  }
+
   async function loadAccountMembers(){
     if(!state.group) return;
     state.accountMembers.loading = true; state.accountMembers.error = null; render();
@@ -4303,6 +4369,20 @@ Keep every string concise. Do not repeat things they say they've already tried. 
 
         ${state.group ? `
           <div class="ms-os-section" style="margin-top:24px;">
+            <h3>Billing — ${esc(state.group.name)}</h3>
+            <p class="ms-sub-dim">The AI mentor (chat, one-sheets, check-in analysis) is billed per group — one subscription covers every member. Everything else in Mastermind stays free.</p>
+            ${state.billing.loading ? `<div class="ms-loading"><div class="ms-spinner"></div></div>` : `
+              <p><strong>${esc(billingStatusLabel())}</strong></p>
+              ${state.billing.error ? `<div class="ms-error">${esc(state.billing.error)}</div>` : ""}
+              ${isAdmin && state.billing.status !== 'active' ? `
+                <div class="ms-actions" style="margin-top:8px;">
+                  <button class="ms-btn ms-btn-gold" id="ms-upgrade-btn" ${state.billing.checkoutLoading?'disabled':''}>${state.billing.checkoutLoading ? "Redirecting..." : "Upgrade — £12/month"}</button>
+                </div>
+              ` : (!isAdmin && state.billing.status !== 'active' ? `<p class="ms-sub-dim">Ask a group admin to upgrade from their Settings panel.</p>` : "")}
+            `}
+          </div>
+          <hr class="ms-os-divider"/>
+          <div class="ms-os-section">
             <h3>This group — ${esc(state.group.name)}</h3>
             ${isAdmin ? `
               <p class="ms-sub-dim">You're an admin. You can remove members or promote someone else to admin.</p>
@@ -4356,6 +4436,8 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     document.querySelectorAll("[data-promote]").forEach(btn=>{
       btn.addEventListener("click", ()=>promoteMember(btn.dataset.promote));
     });
+    const upgradeBtn = document.getElementById("ms-upgrade-btn");
+    if(upgradeBtn) upgradeBtn.addEventListener("click", startCheckout);
     const leaveBtn = document.getElementById("ms-leave-group-btn");
     if(leaveBtn) leaveBtn.addEventListener("click", leaveCurrentGroup);
     const confirmInput = document.getElementById("ms-delete-confirm");
@@ -4982,6 +5064,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   if(accountBtn) accountBtn.addEventListener("click", ()=>{
     state.showAccount = true;
     state.accountMembers = { loaded:false, loading:false, list:[], error:null };
+    state.billing = { loaded:false, loading:false, status:null, trialEndsAt:null, currentPeriodEnd:null, checkoutLoading:false, error:null };
     render();
   });
   const darkToggleBtn = document.getElementById("ms-dark-toggle");
