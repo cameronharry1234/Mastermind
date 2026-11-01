@@ -1218,7 +1218,7 @@
         <button class="ms-tab-btn" id="ms-profile-nav-btn" title="Set up your profile" aria-label="Set up your profile" style="display:none;">👤</button>
         <button class="ms-tab-btn" id="ms-notify-toggle" title="Reminders" aria-label="Toggle reminders"></button>
         <button class="ms-tab-btn" id="ms-dark-toggle" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
-        <button class="ms-tab-btn" id="ms-lock-btn" title="Lock this site" aria-label="Lock this site">🔒</button>
+        <button class="ms-tab-btn" id="ms-lock-btn" title="Sign out" aria-label="Sign out">🔒</button>
       </div>
     </div>
     <div id="ms-app"></div>
@@ -1334,27 +1334,25 @@
   }catch(e){ /* PWA setup is a progressive enhancement layer - never block the app */ }
 })();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 (function(){
-  const STORAGE_ENTRY_PREFIX = "mastermind:entry:";
-  const UNLOCK_STORAGE_KEY = "mastermind:unlocked";
+  // ---------- Supabase backend ----------
+  // Real accounts, a real shared database, real per-group row-level security —
+  // replacing window.storage, which only ever existed inside the Claude artifact
+  // preview and has no equivalent on a real hosted copy of this page.
+  const SUPABASE_URL = "https://zzarjohpqxhjsgolhtvo.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_JpIHNJL8rlVjAsrbkoPXrw_97OtA9OP";
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+  });
+
+  // Device-only prefs (plain localStorage — not shared group data):
   const DARKMODE_STORAGE_KEY = "mastermind:darkmode";
-  const NEXT_SESSION_KEY = "mastermind:nextsession";
+  const LAST_GROUP_KEY = "mastermind:lastgroup"; // which group to land in on this device
   const NOTIFY_PREF_KEY = "mastermind:notifypref";
   const NOTIFY_LASTSEEN_KEY = "mastermind:notifylastseen"; // dedupe so reminders fire once a day, not every poll
-  // Change this to your group's shared passphrase. Note: this is a light
-  // deterrent, not real security — anyone who views this page's source can
-  // read it. Fine for keeping a link off casual/uninvited eyes, not for
-  // protecting genuinely sensitive data.
-  const SITE_PASSCODE = "slatty";
-  const STORAGE_ROSTER_KEY = "mastermind:roster";
   const CHAT_STORAGE_KEY = "mastermind:mychat";
-  const PROFILE_KEY = "mastermind:myprofile";
-  const PROFILES_LIST_KEY = "mastermind:profiles";
-  const PROGRESS_PREFIX = "mastermind:progress:";
-  const PDF_PREFIX = "mastermind:onesheetpdf:";
-  const PDF_INDEX_KEY = "mastermind:onesheetpdfindex";
-  const FORGE_HISTORY_KEY = "mastermind:forgehistory";
   const FORGE_HISTORY_MAX = 60;
   const MAX_PDF_BYTES = 3.5 * 1024 * 1024;
 
@@ -1484,9 +1482,12 @@ When advising: identify which pillar(s) above are actually relevant to the speci
 
   let state = {
     tab: "home",
-    unlocked: false,
-    passInput: "",
-    passError: false,
+    session: null,          // Supabase auth session, or null when signed out
+    authLoading: true,      // true until the initial getSession() resolves
+    authForm: { mode:"signin", email:"", password:"", error:null, loading:false },
+    group: null,            // the active group: { id, name, invite_code, role }
+    myGroups: [],           // every group this account belongs to
+    groupForm: { mode:"create", name:"", code:"", error:null, loading:false },
     darkMode: false,
     notifyEnabled: false,
     listening: false,
@@ -1611,7 +1612,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
 
   async function setNotifyPref(enabled){
     state.notifyEnabled = enabled;
-    try{ await window.storage.set(NOTIFY_PREF_KEY, enabled ? "true" : "false", false); }catch(e){}
+    try{ localStorage.setItem(NOTIFY_PREF_KEY, enabled ? "true" : "false"); }catch(e){}
   }
 
   async function toggleNotifications(){
@@ -1642,25 +1643,26 @@ When advising: identify which pillar(s) above are actually relevant to the speci
     if(!state.notifyEnabled) return;
     let lastSeen = {};
     try{
-      const res = await window.storage.get(NOTIFY_LASTSEEN_KEY, false);
-      if(res && res.value) lastSeen = JSON.parse(res.value);
+      const raw = localStorage.getItem(NOTIFY_LASTSEEN_KEY);
+      if(raw) lastSeen = JSON.parse(raw);
     }catch(e){}
     const today = new Date().toDateString();
     let changed = false;
 
-    if(state.nextSession){
-      const sessionDate = new Date(state.nextSession + "T00:00:00");
+    const sessionDateStr = state.nextSession && state.nextSession.date;
+    if(sessionDateStr){
+      const sessionDate = new Date(sessionDateStr + "T00:00:00");
       const hoursAway = (sessionDate.getTime() - Date.now()) / (1000*60*60);
-      if(hoursAway > 0 && hoursAway <= 24 && lastSeen.session !== state.nextSession){
+      if(hoursAway > 0 && hoursAway <= 24 && lastSeen.session !== sessionDateStr){
         notifyLocal("Session tomorrow", "The next Mastermind session is coming up — get your one-sheet ready.");
-        lastSeen.session = state.nextSession; changed = true;
+        lastSeen.session = sessionDateStr; changed = true;
       }
     }
 
     if(state.profile){
       try{
-        const progress = await loadMyProgress();
-        const last = progress.checkins && progress.checkins.length ? Math.max(...progress.checkins.map(c=>c.at)) : null;
+        const checkins = await loadMyCheckins();
+        const last = checkins.length ? Math.max(...checkins.map(c=>c.at)) : null;
         const daysSince = last ? (Date.now()-last)/(1000*60*60*24) : Infinity;
         if(daysSince >= 9 && lastSeen.checkin !== today){
           notifyLocal("Check-in overdue", "It's been a while — log a weekly check-in to keep your streak honest.");
@@ -1670,7 +1672,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
     }
 
     if(changed){
-      try{ await window.storage.set(NOTIFY_LASTSEEN_KEY, JSON.stringify(lastSeen), false); }catch(e){}
+      try{ localStorage.setItem(NOTIFY_LASTSEEN_KEY, JSON.stringify(lastSeen)); }catch(e){}
     }
   }
 
@@ -1960,11 +1962,13 @@ When advising: identify which pillar(s) above are actually relevant to the speci
     render();
   }
 
+  // Chat history is this device's own scratch space, not shared group data —
+  // plain localStorage, same as dark mode / notification prefs.
   async function loadChatHistory(){
     try{
-      const res = await window.storage.get(CHAT_STORAGE_KEY, false);
-      if(res && res.value){
-        const saved = JSON.parse(res.value);
+      const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+      if(raw){
+        const saved = JSON.parse(raw);
         if(Array.isArray(saved)) state.chat.messages = saved;
       }
     }catch(e){ /* no history yet */ }
@@ -1979,13 +1983,13 @@ When advising: identify which pillar(s) above are actually relevant to the speci
         }
         return { role:m.role, content:m.content };
       });
-      await window.storage.set(CHAT_STORAGE_KEY, JSON.stringify(lightweight), false);
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(lightweight));
     }catch(e){ console.error(e); }
   }
 
   function resetChat(){
     state.chat = { messages:[], input:"", loading:false, error:null, pendingFiles:[], fileError:null };
-    window.storage.delete(CHAT_STORAGE_KEY, false).catch(()=>{});
+    try{ localStorage.removeItem(CHAT_STORAGE_KEY); }catch(e){}
     render();
   }
 
@@ -2161,65 +2165,63 @@ When advising: identify which pillar(s) above are actually relevant to the speci
 
   // ---------- Roundtable: shared storage ----------
   async function loadNextSession(){
+    if(!state.group) return;
     try{
-      const res = await window.storage.get(NEXT_SESSION_KEY, true);
-      if(res && res.value) state.nextSession = JSON.parse(res.value);
-    }catch(e){ state.nextSession = null; }
+      const { data, error } = await sb.from("next_sessions").select("date, updated_at").eq("group_id", state.group.id).maybeSingle();
+      if(error) throw error;
+      state.nextSession = data && data.date ? { date: data.date, setAt: new Date(data.updated_at).getTime() } : null;
+    }catch(e){ console.error(e); state.nextSession = null; }
   }
 
   async function saveNextSession(dateStr){
-    const payload = { date: dateStr, setAt: Date.now() };
+    if(!state.group) return;
     try{
-      await window.storage.set(NEXT_SESSION_KEY, JSON.stringify(payload), true);
-      state.nextSession = payload;
+      const { error } = await sb.from("next_sessions")
+        .upsert({ group_id: state.group.id, date: dateStr, updated_at: new Date().toISOString() });
+      if(error) throw error;
+      state.nextSession = { date: dateStr, setAt: Date.now() };
     }catch(e){ console.error(e); }
     state.editingSessionDate = false;
     render();
   }
 
+  function mapRosterRow(row){
+    return { id: row.id, name: row.name, answers: row.answers || {}, advice: row.advice ? JSON.parse(row.advice) : null, followUp: row.follow_up, submittedAt: new Date(row.created_at).getTime() };
+  }
+
   async function loadRosterCount(){
+    if(!state.group) return 0;
     try{
-      const res = await window.storage.get(STORAGE_ROSTER_KEY, true);
-      if(res && res.value) return JSON.parse(res.value).length;
-    }catch(e){}
-    return 0;
+      const { count, error } = await sb.from("roster_entries").select("id", { count:"exact", head:true }).eq("group_id", state.group.id);
+      if(error) throw error;
+      return count || 0;
+    }catch(e){ return 0; }
   }
 
   async function loadRoster(){
     state.rt.rosterLoading = true; render();
     try{
-      const res = await window.storage.get(STORAGE_ROSTER_KEY, true);
-      const list = res && res.value ? JSON.parse(res.value) : [];
       const pdfIndex = await loadPdfIndex();
       state.rt.pdfIndex = pdfIndex;
-      const entries = [];
-      for(const item of list){
-        try{
-          const e = await window.storage.get(STORAGE_ENTRY_PREFIX + item.id, true);
-          if(e && e.value){
-            const parsed = JSON.parse(e.value);
-            parsed.hasPdf = pdfIndex.includes(parsed.id);
-            entries.push(parsed);
-          }
-        }catch(err){}
-      }
-      entries.sort((a,b)=>(b.submittedAt||0)-(a.submittedAt||0));
-      state.rt.roster = entries;
-    }catch(e){ state.rt.roster = []; }
+      const { data, error } = await sb.from("roster_entries").select("*").eq("group_id", state.group.id).order("created_at", { ascending:false });
+      if(error) throw error;
+      state.rt.roster = (data||[]).map(row=>{
+        const e = mapRosterRow(row);
+        e.hasPdf = pdfIndex.includes(row.profile_id);
+        return e;
+      });
+    }catch(e){ console.error(e); state.rt.roster = []; }
     state.rt.rosterLoading = false; render();
   }
 
   async function findLastEntryForName(name){
     const norm = name.trim().toLowerCase();
-    if(!norm) return null;
+    if(!norm || !state.group) return null;
     try{
-      const listRes = await window.storage.get(STORAGE_ROSTER_KEY, true);
-      const list = listRes && listRes.value ? JSON.parse(listRes.value) : [];
-      const matches = list.filter(item => (item.name||"").trim().toLowerCase() === norm);
-      if(!matches.length) return null;
-      matches.sort((a,b)=>(b.submittedAt||0)-(a.submittedAt||0));
-      const entryRes = await window.storage.get(STORAGE_ENTRY_PREFIX + matches[0].id, true);
-      return entryRes && entryRes.value ? JSON.parse(entryRes.value) : null;
+      const { data, error } = await sb.from("roster_entries").select("*")
+        .eq("group_id", state.group.id).ilike("name", norm).order("created_at", { ascending:false }).limit(1);
+      if(error) throw error;
+      return data && data.length ? mapRosterRow(data[0]) : null;
     }catch(e){ return null; }
   }
 
@@ -2231,27 +2233,27 @@ When advising: identify which pillar(s) above are actually relevant to the speci
   }
 
   async function saveEntry(entry, forcedId){
-    const id = forcedId || (entry.name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-') + '-' + entry.submittedAt);
-    entry.id = id;
+    const row = {
+      group_id: state.group.id, profile_id: state.profile ? state.profile.id : null,
+      name: entry.name, answers: entry.answers, advice: JSON.stringify(entry.advice), follow_up: entry.followUp || null
+    };
     try{
-      await window.storage.set(STORAGE_ENTRY_PREFIX + id, JSON.stringify(entry), true);
-      const listRes = await window.storage.get(STORAGE_ROSTER_KEY, true).catch(()=>null);
-      const list = listRes && listRes.value ? JSON.parse(listRes.value) : [];
-      const idx = list.findIndex(item=>item.id===id);
-      if(idx >= 0) list[idx] = { id, name: entry.name, submittedAt: entry.submittedAt };
-      else list.push({ id, name: entry.name, submittedAt: entry.submittedAt });
-      await window.storage.set(STORAGE_ROSTER_KEY, JSON.stringify(list), true);
-    }catch(e){ console.error(e); }
-    return id;
+      if(forcedId){
+        const { error } = await sb.from("roster_entries").update(row).eq("id", forcedId);
+        if(error) throw error;
+        return forcedId;
+      } else {
+        const { data, error } = await sb.from("roster_entries").insert(row).select("id").single();
+        if(error) throw error;
+        return data.id;
+      }
+    }catch(e){ console.error(e); return null; }
   }
 
   async function deleteEntry(id){
     try{
-      const listRes = await window.storage.get(STORAGE_ROSTER_KEY, true).catch(()=>null);
-      const list = listRes && listRes.value ? JSON.parse(listRes.value) : [];
-      const newList = list.filter(item=>item.id!==id);
-      await window.storage.set(STORAGE_ROSTER_KEY, JSON.stringify(newList), true);
-      await window.storage.delete(STORAGE_ENTRY_PREFIX + id, true).catch(()=>{});
+      const { error } = await sb.from("roster_entries").delete().eq("id", id);
+      if(error) throw error;
     }catch(e){ console.error(e); }
   }
 
@@ -2889,14 +2891,14 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   }
 
   // ---------- Session history log ----------
-  // A simple shared log of who's had the hot seat and for how long — gives the
-  // group a record across sessions without needing a separate "sessions" backend.
+  // A simple shared log of who's had the hot seat and for how long.
   async function loadForgeHistory(){
     state.forge.historyLoading = true; render();
     try{
-      const res = await window.storage.get(FORGE_HISTORY_KEY, true);
-      state.forge.history = res && res.value ? JSON.parse(res.value) : [];
-    }catch(e){ state.forge.history = []; }
+      const { data, error } = await sb.from("forge_sessions").select("*").eq("group_id", state.group.id).order("at", { ascending:false }).limit(FORGE_HISTORY_MAX);
+      if(error) throw error;
+      state.forge.history = (data||[]).map(r=>({ id:r.id, at:new Date(r.at).getTime(), name:r.name, durationMs:r.duration_ms, pdfName:r.pdf_name }));
+    }catch(e){ console.error(e); state.forge.history = []; }
     state.forge.historyLoading = false; render();
   }
 
@@ -2910,19 +2912,17 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     }
     const activePdf = forgeActivePdf();
     const entry = {
-      id: 'h'+Date.now(),
       at: Date.now(),
       name: state.forge.selectedName || "Unnamed turn",
       durationMs: Math.max(0, Math.round(durationMs)),
       pdfName: activePdf ? (activePdf.name || null) : null
     };
     try{
-      const res = await window.storage.get(FORGE_HISTORY_KEY, true).catch(()=>null);
-      const list = res && res.value ? JSON.parse(res.value) : [];
-      list.unshift(entry);
-      while(list.length > FORGE_HISTORY_MAX) list.pop();
-      await window.storage.set(FORGE_HISTORY_KEY, JSON.stringify(list), true);
-      state.forge.history = list;
+      const { error } = await sb.from("forge_sessions").insert({
+        group_id: state.group.id, name: entry.name, duration_ms: entry.durationMs, pdf_name: entry.pdfName
+      });
+      if(error) throw error;
+      state.forge.history = [{ id:'h'+Date.now(), ...entry }, ...(state.forge.history||[])].slice(0, FORGE_HISTORY_MAX);
       haptic(10);
     }catch(e){ console.error("Couldn't save session history:", e); }
     render();
@@ -3078,58 +3078,53 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   }
 
   // ---------- Member profiles ----------
+  // One profile per account (not per group) — profile.id is the real auth user
+  // id, so it's also what every goal/checkin/comment is tagged with as profile_id.
   async function loadProfile(){
+    if(!state.session) { state.profile = null; return; }
     try{
-      const res = await window.storage.get(PROFILE_KEY, false);
-      if(res && res.value) state.profile = JSON.parse(res.value);
-    }catch(e){ state.profile = null; }
+      const { data, error } = await sb.from("profiles").select("id, name, color, created_at").eq("id", state.session.user.id).maybeSingle();
+      if(error) throw error;
+      state.profile = data ? { id: data.id, name: data.name, color: data.color, createdAt: new Date(data.created_at).getTime() } : null;
+    }catch(e){ console.error(e); state.profile = null; }
   }
 
-  async function syncProfileToSharedList(profile, attempts){
+  async function upsertProfileRow(profile, attempts){
     attempts = attempts || 3;
     let lastErr = null;
     for(let i=0; i<attempts; i++){
       try{
-        const listRes = await window.storage.get(PROFILES_LIST_KEY, true).catch(()=>null);
-        const list = listRes && listRes.value ? JSON.parse(listRes.value) : [];
-        const idx = list.findIndex(p=>p.id===profile.id);
-        if(idx>=0) list[idx] = profile; else list.push(profile);
-        await window.storage.set(PROFILES_LIST_KEY, JSON.stringify(list), true);
+        const { error } = await sb.from("profiles").upsert({ id: profile.id, name: profile.name, color: profile.color });
+        if(error) throw error;
         return true;
       }catch(e){
         lastErr = e;
         if(i < attempts-1) await new Promise(r=>setTimeout(r, 600 * (i+1)));
       }
     }
-    console.error("Couldn't sync profile to shared roster after retries:", lastErr);
+    console.error("Couldn't save profile after retries:", lastErr);
     return false;
   }
 
   async function saveProfile(name, colorKey){
-    const profile = { id: name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-'), name: name.trim(), color: colorKey, createdAt: Date.now() };
+    const profile = { id: state.session.user.id, name: name.trim(), color: colorKey, createdAt: Date.now() };
     state.profile = profile; // let them in right away — persistence below is best-effort, never a gate to entry
     haptic(14);
-    try{
-      await window.storage.set(PROFILE_KEY, JSON.stringify(profile), false);
-    }catch(e){ console.error("Couldn't save profile locally:", e); }
-    state.profileSyncOk = await syncProfileToSharedList(profile);
+    state.profileSyncOk = await upsertProfileRow(profile);
     return profile;
   }
 
   async function updateProfile(name, colorKey){
     const profile = { id: state.profile.id, name: name.trim(), color: colorKey, createdAt: state.profile.createdAt || Date.now() };
     state.profile = profile; // apply locally right away, same resilience as saveProfile
-    try{
-      await window.storage.set(PROFILE_KEY, JSON.stringify(profile), false);
-    }catch(e){ console.error("Couldn't save profile locally:", e); }
-    state.profileSyncOk = await syncProfileToSharedList(profile);
+    state.profileSyncOk = await upsertProfileRow(profile);
     return profile;
   }
 
   async function retryProfileSync(){
     if(!state.profile) return;
     state.profileSyncing = true; render();
-    state.profileSyncOk = await syncProfileToSharedList(state.profile);
+    state.profileSyncOk = await upsertProfileRow(state.profile);
     state.profileSyncing = false; render();
   }
 
@@ -3139,27 +3134,50 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   }
 
   // ---------- Goals & check-ins (progress) ----------
-  // Shape stored at PROGRESS_PREFIX + profileId (shared):
-  // { profileId, name, color, goals: [ { id, kind:'long'|'short', title, parentId, metricName, metricUnit, targetValue, currentValue, deadline, done, createdAt } ],
-  //   checkins: [ { id, at, note, summary, onTrackShort, onTrackLong } ] }
-
-  function emptyProgress(profile){
-    return { profileId: profile.id, name: profile.name, color: profile.color, goals: [], checkins: [] };
+  // Rows come back from Postgres in snake_case — map them to the camelCase
+  // shape the rest of the UI (goalCardHtml, memberCardHtml, etc.) already expects.
+  function mapGoalRow(row){
+    return {
+      id: row.id, kind: row.kind, parentId: row.parent_id, title: row.title,
+      metricName: row.metric_name || "", metricUnit: row.metric_unit || "",
+      targetValue: row.target_value, currentValue: row.current_value,
+      deadline: row.deadline, done: row.done, visibility: row.visibility,
+      createdAt: new Date(row.created_at).getTime(), profileId: row.profile_id
+    };
+  }
+  function mapCheckinRow(row, reactionsByCheckin, commentsByCheckin){
+    return {
+      id: row.id, at: new Date(row.at).getTime(), note: row.note,
+      summary: row.summary, onTrackShort: row.on_track_short, onTrackLong: row.on_track_long,
+      reactions: (reactionsByCheckin && reactionsByCheckin[row.id]) || {},
+      comments: (commentsByCheckin && commentsByCheckin[row.id]) || []
+    };
   }
 
+  // Equivalent of the old single "progress blob" for the signed-in member, now
+  // assembled from two real tables instead of one JSON document.
   async function loadMyProgress(){
-    if(!state.profile) return emptyProgress({ id:"", name:"", color:"sky" });
+    if(!state.profile || !state.group) return { profileId:"", name:"", color:"sky", goals:[], checkins:[] };
     try{
-      const res = await window.storage.get(PROGRESS_PREFIX + state.profile.id, true);
-      if(res && res.value) return JSON.parse(res.value);
-    }catch(e){ /* none yet */ }
-    return emptyProgress(state.profile);
+      const [{ data: goalRows, error: gErr }, { data: checkinRows, error: cErr }] = await Promise.all([
+        sb.from("goals").select("*").eq("group_id", state.group.id).eq("profile_id", state.profile.id).order("created_at", { ascending: true }),
+        sb.from("checkins").select("*").eq("group_id", state.group.id).eq("profile_id", state.profile.id).order("at", { ascending: false })
+      ]);
+      if(gErr) throw gErr;
+      if(cErr) throw cErr;
+      return {
+        profileId: state.profile.id, name: state.profile.name, color: state.profile.color,
+        goals: (goalRows||[]).map(mapGoalRow),
+        checkins: (checkinRows||[]).map(r=>mapCheckinRow(r))
+      };
+    }catch(e){
+      console.error(e);
+      return { profileId: state.profile.id, name: state.profile.name, color: state.profile.color, goals:[], checkins:[] };
+    }
   }
 
-  async function saveMyProgress(progress){
-    progress.name = state.profile.name;
-    progress.color = state.profile.color;
-    await window.storage.set(PROGRESS_PREFIX + state.profile.id, JSON.stringify(progress), true);
+  async function loadMyCheckins(){
+    return (await loadMyProgress()).checkins;
   }
 
   function goalProgressPct(goal, allGoals){
@@ -3191,18 +3209,65 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   async function loadDashboard(){
     state.dash.loading = true; state.dash.error = null; render();
     try{
-      const listRes = await window.storage.get(PROFILES_LIST_KEY, true).catch(()=>null);
-      const list = listRes && listRes.value ? JSON.parse(listRes.value) : [];
-      const members = [];
-      for(const p of list){
-        try{
-          const res = await window.storage.get(PROGRESS_PREFIX + p.id, true);
-          const progress = res && res.value ? JSON.parse(res.value) : emptyProgress(p);
-          members.push({ profile:p, progress });
-        }catch(e){
-          members.push({ profile:p, progress: emptyProgress(p) });
-        }
+      const gid = state.group.id;
+      const { data: memberRows, error: mErr } = await sb.from("group_members").select("user_id").eq("group_id", gid);
+      if(mErr) throw mErr;
+      const userIds = (memberRows||[]).map(m=>m.user_id);
+
+      const { data: profileRows, error: pErr } = await sb.from("profiles").select("id,name,color,created_at")
+        .in("id", userIds.length ? userIds : ["00000000-0000-0000-0000-000000000000"]);
+      if(pErr) throw pErr;
+      const profileMap = {};
+      (profileRows||[]).forEach(p=>{ profileMap[p.id] = { id:p.id, name:p.name, color:p.color, createdAt:new Date(p.created_at).getTime() }; });
+
+      // RLS already filters goals down to public ones + my own private ones —
+      // no extra visibility logic needed on this end.
+      const { data: goalRows, error: gErr } = await sb.from("goals").select("*").eq("group_id", gid).order("created_at", { ascending: true });
+      if(gErr) throw gErr;
+      const { data: checkinRows, error: cErr } = await sb.from("checkins").select("*").eq("group_id", gid).order("at", { ascending: false });
+      if(cErr) throw cErr;
+
+      const checkinIds = (checkinRows||[]).map(c=>c.id);
+      let reactionRows = [], commentRows = [];
+      if(checkinIds.length){
+        const [{ data: rr, error: rErr }, { data: cr, error: ccErr }] = await Promise.all([
+          sb.from("checkin_reactions").select("*").in("checkin_id", checkinIds),
+          sb.from("checkin_comments").select("*").in("checkin_id", checkinIds).order("created_at", { ascending: true })
+        ]);
+        if(rErr) throw rErr;
+        if(ccErr) throw ccErr;
+        reactionRows = rr||[]; commentRows = cr||[];
       }
+      const reactionsByCheckin = {};
+      reactionRows.forEach(r=>{
+        const bucket = reactionsByCheckin[r.checkin_id] || (reactionsByCheckin[r.checkin_id] = {});
+        (bucket[r.emoji] || (bucket[r.emoji]=[])).push(r.profile_id);
+      });
+      const commentsByCheckin = {};
+      commentRows.forEach(c=>{
+        const p = profileMap[c.profile_id] || { name:"Someone", color:"sky" };
+        (commentsByCheckin[c.checkin_id] || (commentsByCheckin[c.checkin_id]=[])).push(
+          { id:c.id, by:c.profile_id, byName:p.name, byColor:p.color, text:c.text, at:new Date(c.created_at).getTime() }
+        );
+      });
+
+      const goalsByProfile = {};
+      (goalRows||[]).forEach(row=>{
+        const g = mapGoalRow(row);
+        (goalsByProfile[g.profileId] || (goalsByProfile[g.profileId]=[])).push(g);
+      });
+      const checkinsByProfile = {};
+      (checkinRows||[]).forEach(row=>{
+        const c = mapCheckinRow(row, reactionsByCheckin, commentsByCheckin);
+        (checkinsByProfile[row.profile_id] || (checkinsByProfile[row.profile_id]=[])).push(c);
+      });
+
+      const members = userIds
+        .filter(uid=>profileMap[uid]) // only show members who've actually set up a profile
+        .map(uid=>{
+          const profile = profileMap[uid];
+          return { profile, progress: { profileId: uid, name: profile.name, color: profile.color, goals: goalsByProfile[uid]||[], checkins: checkinsByProfile[uid]||[] } };
+        });
       members.sort((a,b)=>{
         const lastA = a.progress.checkins.length ? Math.max(...a.progress.checkins.map(c=>c.at)) : 0;
         const lastB = b.progress.checkins.length ? Math.max(...b.progress.checkins.map(c=>c.at)) : 0;
@@ -3219,79 +3284,59 @@ Keep every string concise. Do not repeat things they say they've already tried. 
 
   const REACTION_EMOJI = ["👍","🔥","💪","👏"];
 
-  // Reactions/comments on a check-in are written by OTHER members, directly into
-  // the owning member's shared progress record — there's no separate "activity"
-  // store, so this just loads that one record, mutates the one check-in, and saves
-  // it straight back. Best-effort: a failed save just gets silently retried next tap.
-  async function mutateCheckin(targetProfileId, checkinId, mutator){
-    try{
-      const res = await window.storage.get(PROGRESS_PREFIX + targetProfileId, true);
-      if(!res || !res.value) return;
-      const progress = JSON.parse(res.value);
-      const c = (progress.checkins||[]).find(c=>c.id===checkinId);
-      if(!c) return;
-      if(!c.reactions) c.reactions = {};
-      if(!c.comments) c.comments = [];
-      mutator(c);
-      await window.storage.set(PROGRESS_PREFIX + targetProfileId, JSON.stringify(progress), true);
-    }catch(e){ console.error("Couldn't save reaction/comment:", e); }
-  }
-
   async function toggleCheckinReaction(targetProfileId, checkinId, emoji){
     if(!state.profile) return;
-    const myId = state.profile.id;
     haptic(10);
-    await mutateCheckin(targetProfileId, checkinId, (c)=>{
-      const list = c.reactions[emoji] || (c.reactions[emoji] = []);
-      const idx = list.indexOf(myId);
-      if(idx === -1) list.push(myId); else list.splice(idx, 1);
-    });
+    try{
+      const { data: existing, error: selErr } = await sb.from("checkin_reactions").select("id")
+        .eq("checkin_id", checkinId).eq("profile_id", state.profile.id).eq("emoji", emoji).maybeSingle();
+      if(selErr) throw selErr;
+      if(existing){
+        const { error } = await sb.from("checkin_reactions").delete().eq("id", existing.id);
+        if(error) throw error;
+      } else {
+        const { error } = await sb.from("checkin_reactions").insert({ checkin_id: checkinId, profile_id: state.profile.id, emoji });
+        if(error) throw error;
+      }
+    }catch(e){ console.error("Couldn't save reaction:", e); }
     await loadDashboard();
   }
 
   async function addCheckinComment(targetProfileId, checkinId, text){
     if(!state.profile || !text || !text.trim()) return;
-    const comment = { by: state.profile.id, byName: state.profile.name, byColor: state.profile.color, text: text.trim(), at: Date.now() };
     haptic(10);
-    await mutateCheckin(targetProfileId, checkinId, (c)=>{ c.comments.push(comment); });
+    try{
+      const { error } = await sb.from("checkin_comments").insert({ checkin_id: checkinId, profile_id: state.profile.id, text: text.trim() });
+      if(error) throw error;
+    }catch(e){ console.error("Couldn't save comment:", e); }
     await loadDashboard();
   }
 
-  // ---------- One-sheet PDF uploads ----------
-  function base64ToBlobUrl(base64, mediaType){
-    try{
-      const byteChars = atob(base64);
-      const byteNumbers = new Array(byteChars.length);
-      for(let i=0;i<byteChars.length;i++) byteNumbers[i] = byteChars.charCodeAt(i);
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: mediaType || 'application/pdf' });
-      return URL.createObjectURL(blob);
-    }catch(e){ console.error(e); return null; }
-  }
+  // ---------- One-sheet PDF uploads (Supabase Storage) ----------
+  // Keyed by roster_entries.id ("who's up" doesn't have to be a signed-up
+  // account), stored under <group_id>/<entry_id>-<filename>.pdf so the storage
+  // RLS policies (which check the group_id folder segment) can gate access.
 
   async function loadPdfIndex(){
+    if(!state.group) return [];
     try{
-      const res = await window.storage.get(PDF_INDEX_KEY, true);
-      if(res && res.value) return JSON.parse(res.value);
-    }catch(e){ /* none yet */ }
-    return [];
+      const { data, error } = await sb.from("onesheets").select("entry_id").eq("group_id", state.group.id).not("entry_id", "is", null);
+      if(error) throw error;
+      return (data||[]).map(r=>r.entry_id);
+    }catch(e){ console.error(e); return []; }
   }
 
   async function uploadOnesheetPdf(entryId, file){
     if(!isPdfFile(file)){ throw new Error("That doesn't look like a PDF."); }
     if(file.size > MAX_PDF_BYTES){ throw new Error("That PDF is too big — keep it under 3.5MB."); }
-    const base64 = await new Promise((resolve, reject)=>{
-      const reader = new FileReader();
-      reader.onload = ()=>resolve(reader.result.split(",")[1]);
-      reader.onerror = ()=>reject(new Error("Couldn't read that file."));
-      reader.readAsDataURL(file);
-    });
-    await window.storage.set(PDF_PREFIX + entryId, JSON.stringify({ name:file.name, mediaType:"application/pdf", data:base64 }), true);
-    const index = await loadPdfIndex();
-    if(!index.includes(entryId)){
-      index.push(entryId);
-      await window.storage.set(PDF_INDEX_KEY, JSON.stringify(index), true);
-    }
+    const path = `${state.group.id}/${entryId}-${file.name.replace(/[^a-zA-Z0-9_.-]+/g, "_")}`;
+    const { error: upErr } = await sb.storage.from("onesheets").upload(path, file, { contentType: "application/pdf", upsert: true });
+    if(upErr) throw new Error(upErr.message || "Couldn't upload that file.");
+    const { error: rowErr } = await sb.from("onesheets").upsert({
+      group_id: state.group.id, entry_id: entryId, profile_id: state.profile ? state.profile.id : null,
+      storage_path: path, filename: file.name
+    }, { onConflict: "entry_id" });
+    if(rowErr) throw new Error(rowErr.message || "Uploaded, but couldn't save the record.");
   }
 
   async function loadProfilePdfForEntry(entryId){
@@ -3299,16 +3344,18 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     if(!entryId) return;
     state.forge.profilePdfLoading = true; render();
     try{
-      const res = await window.storage.get(PDF_PREFIX + entryId, true);
-      if(res && res.value){
-        const parsed = JSON.parse(res.value);
-        const objectUrl = base64ToBlobUrl(parsed.data, parsed.mediaType);
-        state.forge.profilePdf = { name: parsed.name, objectUrl };
+      const { data, error } = await sb.from("onesheets").select("storage_path, filename").eq("entry_id", entryId).maybeSingle();
+      if(error) throw error;
+      if(data && data.storage_path){
+        const { data: signed, error: signErr } = await sb.storage.from("onesheets").createSignedUrl(data.storage_path, 3600);
+        if(signErr) throw signErr;
+        state.forge.profilePdf = { name: data.filename || "one-sheet.pdf", objectUrl: signed.signedUrl };
         if(!state.forge.manualPdf) state.forge.activeSource = 'profile';
       } else {
         state.forge.profilePdf = null;
       }
     }catch(e){
+      console.error(e);
       state.forge.profilePdf = null;
     }
     state.forge.profilePdfLoading = false; render();
@@ -3319,8 +3366,13 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     state.forge.peopleLoading = true; render();
     try{
       if(!state.rt.roster.length && !state.rt.rosterLoading) await loadRoster();
-      const profRes = await window.storage.get(PROFILES_LIST_KEY, true).catch(()=>null);
-      const profiles = profRes && profRes.value ? JSON.parse(profRes.value) : [];
+      const { data: memberRows, error: mErr } = await sb.from("group_members").select("user_id").eq("group_id", state.group.id);
+      if(mErr) throw mErr;
+      const userIds = (memberRows||[]).map(m=>m.user_id);
+      const { data: profRows, error: pErr } = await sb.from("profiles").select("id,name,color")
+        .in("id", userIds.length ? userIds : ["00000000-0000-0000-0000-000000000000"]);
+      if(pErr) throw pErr;
+      const profiles = profRows || [];
       const roster = state.rt.roster || [];
       const byName = {};
       roster.forEach(e=>{ byName[e.name.trim().toLowerCase()] = e; });
@@ -3470,61 +3522,63 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     }
   }
 
-  function newGoalId(){ return 'g' + Date.now() + Math.random().toString(36).slice(2,7); }
-
   async function submitGoalForm(){
     const f = state.dash.goalForm;
     if(!f.title.trim()){ state.dash.goalFormError = "Give the goal a title."; render(); return; }
     if(f.kind === 'short' && !f.metricName.trim()){ state.dash.goalFormError = "Add what you're measuring."; render(); return; }
     state.dash.goalFormError = null;
-    const progress = await loadMyProgress();
-    if(f.editingId){
-      const g = progress.goals.find(g=>g.id===f.editingId);
-      if(g){
-        g.title = f.title.trim();
-        g.metricName = f.metricName.trim();
-        g.metricUnit = f.metricUnit.trim();
-        g.targetValue = f.targetValue;
-        g.deadline = f.deadline;
-        g.visibility = f.visibility === 'private' ? 'private' : 'public';
-      }
-    } else {
-      progress.goals.push({
-        id: newGoalId(), kind: f.kind, title: f.title.trim(), parentId: f.parentId || null,
-        metricName: f.metricName.trim(), metricUnit: f.metricUnit.trim(),
-        targetValue: f.targetValue, currentValue: 0, deadline: f.deadline, done:false, createdAt: Date.now(),
-        visibility: f.visibility === 'private' ? 'private' : 'public'
-      });
+    const row = {
+      group_id: state.group.id, profile_id: state.profile.id, kind: f.kind,
+      parent_id: f.parentId || null, title: f.title.trim(),
+      metric_name: f.metricName.trim() || null, metric_unit: f.metricUnit.trim() || null,
+      target_value: f.targetValue === "" ? null : f.targetValue,
+      deadline: f.deadline || null,
+      visibility: f.visibility === 'private' ? 'private' : 'public'
+    };
+    try{
+      const { error } = f.editingId
+        ? await sb.from("goals").update(row).eq("id", f.editingId)
+        : await sb.from("goals").insert(row);
+      if(error) throw error;
+    }catch(e){
+      console.error(e);
+      state.dash.goalFormError = "Couldn't save that goal — try again.";
+      render();
+      return;
     }
-    await saveMyProgress(progress);
     state.dash.goalForm = null;
     await loadDashboard();
   }
 
   async function updateGoalValue(goalId, newValue){
-    const progress = await loadMyProgress();
-    const g = progress.goals.find(g=>g.id===goalId);
-    if(!g) return;
-    g.currentValue = newValue;
-    const t = parseFloat(g.targetValue);
-    if(isFinite(t) && parseFloat(newValue) >= t) g.done = true;
-    await saveMyProgress(progress);
+    try{
+      const { data: existing, error: selErr } = await sb.from("goals").select("target_value").eq("id", goalId).maybeSingle();
+      if(selErr) throw selErr;
+      const t = existing ? parseFloat(existing.target_value) : NaN;
+      const done = isFinite(t) && parseFloat(newValue) >= t;
+      const { error } = await sb.from("goals").update({ current_value: newValue, done }).eq("id", goalId);
+      if(error) throw error;
+    }catch(e){ console.error(e); }
     await loadDashboard();
   }
 
   async function toggleGoalDone(goalId){
-    const progress = await loadMyProgress();
-    const g = progress.goals.find(g=>g.id===goalId);
-    if(!g) return;
-    g.done = !g.done;
-    await saveMyProgress(progress);
+    try{
+      const { data: existing, error: selErr } = await sb.from("goals").select("done").eq("id", goalId).maybeSingle();
+      if(selErr) throw selErr;
+      const { error } = await sb.from("goals").update({ done: !(existing && existing.done) }).eq("id", goalId);
+      if(error) throw error;
+    }catch(e){ console.error(e); }
     await loadDashboard();
   }
 
   async function deleteGoal(goalId){
-    const progress = await loadMyProgress();
-    progress.goals = progress.goals.filter(g=>g.id!==goalId && g.parentId!==goalId);
-    await saveMyProgress(progress);
+    try{
+      // Short-term children cascade on delete at the database level (goals.parent_id
+      // has ON DELETE CASCADE), so a long-term goal's sub-goals go with it.
+      const { error } = await sb.from("goals").delete().eq("id", goalId);
+      if(error) throw error;
+    }catch(e){ console.error(e); }
     await loadDashboard();
   }
 
@@ -3543,8 +3597,11 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       const userText = `Member: ${state.profile.name}\n\nCurrent goals:\n${goalSummary}\n\nThis week's update from the member:\n${f.text.trim()}`;
       const text = await callMentor(sys, userText, 500);
       const result = parseJson(text);
-      progress.checkins.push({ id:'c'+Date.now(), at: Date.now(), note: f.text.trim(), reactions:{}, comments:[], ...result });
-      await saveMyProgress(progress);
+      const { error } = await sb.from("checkins").insert({
+        group_id: state.group.id, profile_id: state.profile.id, note: f.text.trim(),
+        summary: result.summary, on_track_short: result.onTrackShort, on_track_long: result.onTrackLong
+      });
+      if(error) throw error;
       state.dash.checkinForm = null;
       haptic(14);
       await loadDashboard();
@@ -3560,10 +3617,21 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   async function render(){
     const navEl = document.getElementById("ms-nav");
 
-    if(!state.unlocked){
+    if(state.authLoading){
       if(navEl) navEl.style.display = "none";
-      app.innerHTML = renderGate();
-      bindGateEvents();
+      app.innerHTML = `<div class="ms-loading" style="margin-top:20vh;"><div class="ms-spinner"></div>Loading...</div>`;
+      return;
+    }
+    if(!state.session){
+      if(navEl) navEl.style.display = "none";
+      app.innerHTML = renderAuthGate();
+      bindAuthGateEvents();
+      return;
+    }
+    if(!state.group){
+      if(navEl) navEl.style.display = "none";
+      app.innerHTML = renderGroupGate();
+      bindGroupGateEvents();
       return;
     }
     if(state.showProfileSetup || (!state.profile && !state.skippedProfile)){
@@ -3621,45 +3689,207 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     }
   }
 
-  function renderGate(){
+  function renderAuthGate(){
+    const f = state.authForm;
+    const isSignup = f.mode === "signup";
     return `
       <div class="ms-gate">
         <div class="ms-gate-mark">M</div>
-        <div class="ms-eyebrow" style="justify-content:center;">Mastermind — Private Access</div>
-        <h1 class="ms-title" style="text-align:center;">This table's<br/><em>invite-only.</em></h1>
-        <p class="ms-sub" style="text-align:center; margin-left:auto; margin-right:auto;">Enter the group passphrase to get in.</p>
-        <div class="ms-gate-form">
-          <input type="text" class="ms-input ms-mask" id="ms-gate-input" placeholder="Passphrase"
-            name="mm-gate-passphrase" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-            data-lpignore="true" data-1p-ignore data-bwignore="true" data-form-type="other"
-            value="${esc(state.passInput)}"/>
-          <button class="ms-btn" id="ms-gate-submit">Enter</button>
+        <div class="ms-eyebrow" style="justify-content:center;">Mastermind</div>
+        <h1 class="ms-title" style="text-align:center;">${isSignup ? `Create your<br/><em>account.</em>` : `Welcome<br/><em>back.</em>`}</h1>
+        <p class="ms-sub" style="text-align:center; margin-left:auto; margin-right:auto;">${isSignup ? "One account gets you into every group you're part of." : "Sign in to get back to your table."}</p>
+        <div class="ms-field-wrap" style="margin-left:0; max-width:360px; margin-left:auto; margin-right:auto;">
+          <input type="email" class="ms-input" id="ms-auth-email" placeholder="Email" autocomplete="email"
+            value="${esc(f.email)}" style="margin-bottom:10px;"/>
+          <input type="password" class="ms-input" id="ms-auth-password" placeholder="${isSignup ? 'Choose a password (6+ characters)' : 'Password'}"
+            autocomplete="${isSignup ? 'new-password' : 'current-password'}" value="${esc(f.password)}"/>
         </div>
-        ${state.passError ? `<div class="ms-error" style="text-align:center;">That's not it — try again.</div>` : ""}
+        ${f.error ? `<div class="ms-error" style="text-align:center;">${esc(f.error)}</div>` : ""}
+        <div class="ms-actions" style="justify-content:center; margin-top:20px;">
+          <button class="ms-btn ms-btn-gold" id="ms-auth-submit" ${f.loading?'disabled':''}>${f.loading ? "Please wait..." : (isSignup ? "Create account" : "Sign in")}</button>
+        </div>
+        <p class="ms-sub-dim" style="text-align:center; margin-top:16px;">
+          ${isSignup ? "Already have an account?" : "New here?"}
+          <a href="#" id="ms-auth-switch" style="color:var(--sky); text-decoration:underline;">${isSignup ? "Sign in" : "Create one"}</a>
+        </p>
       </div>
     `;
   }
 
-  function bindGateEvents(){
-    const input = document.getElementById("ms-gate-input");
-    const submit = document.getElementById("ms-gate-submit");
-    const tryUnlock = ()=>{
-      if(state.passInput === SITE_PASSCODE){
-        state.unlocked = true;
-        state.passError = false;
-        window.storage.set(UNLOCK_STORAGE_KEY, "true", false).catch(()=>{});
-        render();
-      } else {
-        state.passError = true;
-        render();
-      }
-    };
-    if(input){
-      input.addEventListener("input", e=>{ state.passInput = e.target.value; });
-      input.addEventListener("keydown", e=>{ if(e.key === "Enter") tryUnlock(); });
-      input.focus();
+  function bindAuthGateEvents(){
+    const f = state.authForm;
+    const emailInput = document.getElementById("ms-auth-email");
+    const passwordInput = document.getElementById("ms-auth-password");
+    if(emailInput){ emailInput.addEventListener("input", e=>{ f.email = e.target.value; }); }
+    if(passwordInput){
+      passwordInput.addEventListener("input", e=>{ f.password = e.target.value; });
+      passwordInput.addEventListener("keydown", e=>{ if(e.key === "Enter") submitAuthForm(); });
+      if(f.email) passwordInput.focus(); else if(emailInput) emailInput.focus();
     }
-    if(submit) submit.addEventListener("click", tryUnlock);
+    const submit = document.getElementById("ms-auth-submit");
+    if(submit) submit.addEventListener("click", submitAuthForm);
+    const switchLink = document.getElementById("ms-auth-switch");
+    if(switchLink) switchLink.addEventListener("click", (e)=>{
+      e.preventDefault();
+      f.mode = f.mode === "signup" ? "signin" : "signup";
+      f.error = null;
+      render();
+    });
+  }
+
+  async function submitAuthForm(){
+    const f = state.authForm;
+    if(f.loading) return;
+    const email = f.email.trim();
+    if(!email || !f.password){ f.error = "Enter your email and password."; render(); return; }
+    if(f.mode === "signup" && f.password.length < 6){ f.error = "Password needs to be at least 6 characters."; render(); return; }
+    f.loading = true; f.error = null; render();
+    try{
+      const { data, error } = f.mode === "signup"
+        ? await sb.auth.signUp({ email, password: f.password })
+        : await sb.auth.signInWithPassword({ email, password: f.password });
+      if(error) throw error;
+      if(f.mode === "signup" && !data.session){
+        // email confirmation is on for this project — session won't exist yet
+        f.loading = false;
+        f.error = "Account created — check your email to confirm it, then sign in.";
+        f.mode = "signin";
+        render();
+        return;
+      }
+      state.session = data.session;
+      haptic(14);
+      await afterSignIn();
+    }catch(e){
+      console.error(e);
+      f.loading = false;
+      f.error = e.message || "Something went wrong — try again.";
+      render();
+    }
+  }
+
+  // Runs once we have a real session: load (or create-if-missing) the profile,
+  // figure out which group to land in, and move past the gate screens.
+  async function afterSignIn(){
+    try{ await loadMyGroups(); }catch(e){ console.error(e); }
+    try{ await loadProfile(); }catch(e){ console.error(e); }
+    state.authForm.loading = false;
+    render();
+    if(state.group){
+      await withTimeout(loadNextSession(), 10000).catch(()=>{});
+      checkReminders().catch(()=>{});
+    }
+  }
+
+  async function loadMyGroups(){
+    const { data, error } = await sb
+      .from("group_members")
+      .select("role, groups(id, name, invite_code)")
+      .order("joined_at", { ascending: true });
+    if(error) throw error;
+    const groups = (data||[]).filter(r=>r.groups).map(r=>({ id:r.groups.id, name:r.groups.name, invite_code:r.groups.invite_code, role:r.role }));
+    state.myGroups = groups;
+    let lastGroupId = null;
+    try{ lastGroupId = localStorage.getItem(LAST_GROUP_KEY); }catch(e){}
+    state.group = groups.find(g=>g.id===lastGroupId) || groups[0] || null;
+    if(state.group){ try{ localStorage.setItem(LAST_GROUP_KEY, state.group.id); }catch(e){} }
+  }
+
+  function renderGroupGate(){
+    const f = state.groupForm;
+    const hasGroups = state.myGroups && state.myGroups.length > 0;
+    return `
+      <div class="ms-gate" style="max-width:480px;">
+        <div class="ms-gate-mark">M</div>
+        <div class="ms-eyebrow" style="justify-content:center;">One more thing</div>
+        <h1 class="ms-title" style="text-align:center;">Find your<br/><em>table.</em></h1>
+        <p class="ms-sub" style="text-align:center; margin-left:auto; margin-right:auto;">Create a new group, or join one with an invite code from someone already in it.</p>
+        <div class="ms-forge-mode-toggle" style="justify-content:center; margin:0 auto 20px;">
+          <button class="ms-forge-mode-btn ${f.mode==='create'?'ms-active':''}" id="ms-group-mode-create">Create a group</button>
+          <button class="ms-forge-mode-btn ${f.mode==='join'?'ms-active':''}" id="ms-group-mode-join">Join with a code</button>
+        </div>
+        <div class="ms-field-wrap" style="margin-left:0; max-width:360px; margin-left:auto; margin-right:auto;">
+          ${f.mode === 'create' ? `
+            <input type="text" class="ms-input" id="ms-group-name" placeholder="Group name" value="${esc(f.name)}"/>
+          ` : `
+            <input type="text" class="ms-input" id="ms-group-code" placeholder="Invite code" style="text-transform:uppercase; letter-spacing:.1em;" value="${esc(f.code)}"/>
+          `}
+        </div>
+        ${f.error ? `<div class="ms-error" style="text-align:center;">${esc(f.error)}</div>` : ""}
+        <div class="ms-actions" style="justify-content:center; margin-top:20px;">
+          <button class="ms-btn ms-btn-gold" id="ms-group-submit" ${f.loading?'disabled':''}>${f.loading ? "Please wait..." : (f.mode==='create' ? "Create group" : "Join group")}</button>
+        </div>
+        ${hasGroups ? `
+          <div style="margin-top:28px; border-top:1px solid var(--line); padding-top:18px;">
+            <p class="ms-sub-dim" style="text-align:center; margin-bottom:10px;">Or pick a group you're already in:</p>
+            <div class="ms-actions" style="justify-content:center;">
+              ${state.myGroups.map(g=>`<button class="ms-btn ms-btn-ghost ms-group-pick" data-group-id="${esc(g.id)}" style="font-size:12px;">${esc(g.name)}</button>`).join("")}
+            </div>
+          </div>
+        ` : ""}
+        <p class="ms-sub-dim" style="text-align:center; margin-top:22px;"><a href="#" id="ms-auth-signout-link" style="color:var(--ink-dim); text-decoration:underline;">Sign out</a></p>
+      </div>
+    `;
+  }
+
+  function bindGroupGateEvents(){
+    const f = state.groupForm;
+    const createModeBtn = document.getElementById("ms-group-mode-create");
+    if(createModeBtn) createModeBtn.addEventListener("click", ()=>{ f.mode = "create"; f.error = null; render(); });
+    const joinModeBtn = document.getElementById("ms-group-mode-join");
+    if(joinModeBtn) joinModeBtn.addEventListener("click", ()=>{ f.mode = "join"; f.error = null; render(); });
+    const nameInput = document.getElementById("ms-group-name");
+    if(nameInput){ nameInput.addEventListener("input", e=>{ f.name = e.target.value; }); nameInput.addEventListener("keydown", e=>{ if(e.key==="Enter") submitGroupForm(); }); nameInput.focus(); }
+    const codeInput = document.getElementById("ms-group-code");
+    if(codeInput){ codeInput.addEventListener("input", e=>{ f.code = e.target.value; }); codeInput.addEventListener("keydown", e=>{ if(e.key==="Enter") submitGroupForm(); }); codeInput.focus(); }
+    const submit = document.getElementById("ms-group-submit");
+    if(submit) submit.addEventListener("click", submitGroupForm);
+    document.querySelectorAll(".ms-group-pick[data-group-id]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const g = state.myGroups.find(g=>g.id===btn.dataset.groupId);
+        if(g){ state.group = g; try{ localStorage.setItem(LAST_GROUP_KEY, g.id); }catch(e){} render(); loadNextSession(); }
+      });
+    });
+    const signOutLink = document.getElementById("ms-auth-signout-link");
+    if(signOutLink) signOutLink.addEventListener("click", async (e)=>{ e.preventDefault(); await signOut(); });
+  }
+
+  async function submitGroupForm(){
+    const f = state.groupForm;
+    if(f.loading) return;
+    if(f.mode === "create" && !f.name.trim()){ f.error = "Give your group a name."; render(); return; }
+    if(f.mode === "join" && !f.code.trim()){ f.error = "Enter an invite code."; render(); return; }
+    f.loading = true; f.error = null; render();
+    try{
+      const { data, error } = f.mode === "create"
+        ? await sb.rpc("create_group", { group_name: f.name.trim() })
+        : await sb.rpc("join_group_by_code", { code: f.code.trim() });
+      if(error) throw error;
+      if(!data || !data.id) throw new Error("That didn't go through — try again.");
+      const g = { id: data.id, name: data.name, invite_code: data.invite_code, role: f.mode === "create" ? "admin" : "member" };
+      state.group = g;
+      state.myGroups = (state.myGroups||[]).filter(x=>x.id!==g.id).concat([g]);
+      try{ localStorage.setItem(LAST_GROUP_KEY, g.id); }catch(e){}
+      haptic(14);
+      f.loading = false;
+      render();
+      loadNextSession();
+    }catch(e){
+      console.error(e);
+      f.loading = false;
+      f.error = (e.message || "").includes("No group found") ? "No group found for that code — double check it." : (e.message || "Couldn't do that — try again.");
+      render();
+    }
+  }
+
+  async function signOut(){
+    try{ await sb.auth.signOut(); }catch(e){}
+    state.session = null;
+    state.group = null;
+    state.profile = null;
+    state.myGroups = [];
+    try{ localStorage.removeItem(LAST_GROUP_KEY); }catch(e){}
+    render();
   }
 
   function renderProfileSetup(){
@@ -4273,16 +4503,11 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     render();
   });
   const lockBtn = document.getElementById("ms-lock-btn");
-  if(lockBtn) lockBtn.addEventListener("click", ()=>{
-    state.unlocked = false;
-    state.passInput = "";
-    window.storage.delete(UNLOCK_STORAGE_KEY, false).catch(()=>{});
-    render();
-  });
+  if(lockBtn) lockBtn.addEventListener("click", ()=>{ signOut(); });
   const darkToggleBtn = document.getElementById("ms-dark-toggle");
   if(darkToggleBtn) darkToggleBtn.addEventListener("click", ()=>{
     state.darkMode = !state.darkMode;
-    window.storage.set(DARKMODE_STORAGE_KEY, state.darkMode ? "true" : "false", false).catch(()=>{});
+    try{ localStorage.setItem(DARKMODE_STORAGE_KEY, state.darkMode ? "true" : "false"); }catch(e){}
     render();
   });
   const notifyToggleBtn = document.getElementById("ms-notify-toggle");
@@ -4301,29 +4526,33 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     window.__msForgeResizeT = setTimeout(sizeForgePdfFrame, 150);
   });
 
+  // Device-only preferences never touched the shared database, so they stay
+  // in plain localStorage (unlike window.storage, this works on any real host,
+  // not just the Claude artifact preview).
+  try{ if(localStorage.getItem(DARKMODE_STORAGE_KEY) === "true") state.darkMode = true; }catch(e){}
+  try{
+    if(localStorage.getItem(NOTIFY_PREF_KEY) === "true" && "Notification" in window && Notification.permission === "granted"){
+      state.notifyEnabled = true;
+    }
+  }catch(e){}
+  loadChatHistory().catch(()=>{});
+
+  sb.auth.onAuthStateChange((_event, session)=>{
+    state.session = session;
+  });
+
   (async function init(){
     try{
-      try{
-        const res = await withTimeout(window.storage.get(UNLOCK_STORAGE_KEY, false), 10000);
-        if(res && res.value === "true") state.unlocked = true;
-      }catch(e){ /* not unlocked yet */ }
-      try{
-        const darkRes = await withTimeout(window.storage.get(DARKMODE_STORAGE_KEY, false), 10000);
-        if(darkRes && darkRes.value === "true") state.darkMode = true;
-      }catch(e){ /* default light */ }
-      try{
-        const notifyRes = await withTimeout(window.storage.get(NOTIFY_PREF_KEY, false), 10000);
-        if(notifyRes && notifyRes.value === "true" && "Notification" in window && Notification.permission === "granted"){
-          state.notifyEnabled = true;
-        }
-      }catch(e){ /* default off */ }
-      if(state.unlocked){
-        await withTimeout(loadChatHistory(), 10000).catch(()=>{});
-        await withTimeout(loadProfile(), 10000).catch(()=>{});
+      const { data } = await withTimeout(sb.auth.getSession(), 10000);
+      state.session = data && data.session ? data.session : null;
+      state.authLoading = false;
+      if(state.session){
+        await afterSignIn();
+        return; // afterSignIn() already renders
       }
-      await withTimeout(loadNextSession(), 10000).catch(()=>{});
     }catch(e){
       console.error("Init error:", e);
+      state.authLoading = false;
     }
     render();
     checkReminders().catch(()=>{});
