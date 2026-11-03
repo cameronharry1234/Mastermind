@@ -1294,10 +1294,18 @@
       touch.setAttribute('href', icon192);
     }
 
-    // Build the web app manifest at runtime and serve it from a Blob URL, so
-    // "Add to Home Screen" / install prompts work without a second manifest.json
-    // file existing anywhere - the single HTML file stays fully self-contained.
-    if(icon192 && icon512 && window.Blob && window.URL && URL.createObjectURL){
+    // Prefer a real, static manifest.json served alongside this page (e.g. the
+    // GitHub Pages copy) - that's what Chrome/Android's installability checks and
+    // Play Store/TWA packaging tools actually expect: a fetchable file, not a
+    // blob: URL. Fall back to building one at runtime from a Blob only where no
+    // second file can be served at all (e.g. the Claude artifact preview sandbox).
+    function ensureManifestLink(href){
+      var manifestLink = head.querySelector('link[rel="manifest"]');
+      if(!manifestLink){ manifestLink = document.createElement('link'); manifestLink.setAttribute('rel', 'manifest'); head.appendChild(manifestLink); }
+      manifestLink.setAttribute('href', href);
+    }
+    function buildBlobManifest(){
+      if(!(icon192 && icon512 && window.Blob && window.URL && URL.createObjectURL)) return;
       try{
         var manifest = {
           name: "Mastermind",
@@ -1315,11 +1323,16 @@
           ]
         };
         var manifestBlob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
-        var manifestUrl = URL.createObjectURL(manifestBlob);
-        var manifestLink = head.querySelector('link[rel="manifest"]');
-        if(!manifestLink){ manifestLink = document.createElement('link'); manifestLink.setAttribute('rel', 'manifest'); head.appendChild(manifestLink); }
-        manifestLink.setAttribute('href', manifestUrl);
+        ensureManifestLink(URL.createObjectURL(manifestBlob));
       }catch(e){ /* manifest unsupported in this context - safe to skip */ }
+    }
+    if(window.fetch){
+      fetch('./manifest.json', { method: 'HEAD' }).then(function(res){
+        if(res && res.ok){ ensureManifestLink('./manifest.json'); }
+        else { buildBlobManifest(); }
+      }).catch(function(){ buildBlobManifest(); });
+    } else {
+      buildBlobManifest();
     }
 
     // Register a service worker for offline app-shell caching. This only has an
@@ -1678,13 +1691,66 @@ When advising: identify which pillar(s) above are actually relevant to the speci
     try{ if(navigator && typeof navigator.vibrate === "function") navigator.vibrate(pattern || 12); }catch(e){}
   }
 
-  // --- Local reminders ---------------------------------------------------------
-  // Real push notifications (ones that arrive even with the tab/app fully closed)
-  // need a backend push service and VAPID keys to talk to — there's nothing here
-  // to hang that off, so this is deliberately a lighter thing: while the app is
-  // open (including as an installed PWA you've opened that day), it can nudge you
-  // about a session tomorrow or a check-in that's overdue. It never fires silently
-  // in the background once the tab is closed.
+  // --- Push notifications --------------------------------------------------------
+  // Real push: the send-push-reminders Edge Function runs on a schedule and wakes
+  // sw.js up via the browser's push service even when the app/tab is fully closed.
+  // Turning notifications on subscribes this device (pushManager.subscribe) and
+  // saves that subscription to Supabase so the server can target it; turning them
+  // off removes it. notifyLocal below is a separate, lighter-weight thing used for
+  // in-app nudges (e.g. the Forge timer finishing) while this tab is actually open.
+
+  // The VAPID public key the send-push-reminders function signs with — not a
+  // secret, it's meant to be embedded in client code like this. Keeping this
+  // literal identical to the one in the Edge Function is what makes subscribe()
+  // actually work; the two were generated together.
+  const VAPID_PUBLIC_KEY = "BKXoe-EZAzcCVXkbtIoRXYGrHW3JvzPVzmA2mi0MWgIn0rDEQ96KqZjaM1_XhGxqby7szYhILoetFwPDxu0DF5Y";
+
+  function urlBase64ToUint8Array(base64String){
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for(let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  async function subscribeToPush(){
+    if(!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+    try{
+      const registration = await navigator.serviceWorker.ready;
+      let sub = await registration.pushManager.getSubscription();
+      if(!sub){
+        sub = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+      }
+      const json = sub.toJSON();
+      if(state.session && state.session.user){
+        await sb.from("push_subscriptions").upsert({
+          profile_id: state.session.user.id,
+          endpoint: json.endpoint,
+          p256dh: json.keys.p256dh,
+          auth_key: json.keys.auth
+        }, { onConflict: "endpoint" });
+      }
+      return true;
+    }catch(e){ console.error("push subscribe failed", e); return false; }
+  }
+
+  async function unsubscribeFromPush(){
+    if(!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    try{
+      const registration = await navigator.serviceWorker.ready;
+      const sub = await registration.pushManager.getSubscription();
+      if(sub){
+        const endpoint = sub.endpoint;
+        await sub.unsubscribe().catch(()=>{});
+        await sb.from("push_subscriptions").delete().eq("endpoint", endpoint).catch(()=>{});
+      }
+    }catch(e){ /* best-effort - not fatal if this fails */ }
+  }
+
   function notifyLocal(title, body){
     try{
       if(!state.notifyEnabled) return;
@@ -1706,6 +1772,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
     }
     if(state.notifyEnabled){
       await setNotifyPref(false);
+      unsubscribeFromPush().catch(()=>{});
       render();
       return;
     }
@@ -1713,7 +1780,12 @@ When advising: identify which pillar(s) above are actually relevant to the speci
       const perm = await Notification.requestPermission();
       if(perm === "granted"){
         await setNotifyPref(true);
-        notifyLocal("Reminders on", "You'll get a nudge here when a session's coming up or a check-in's overdue.");
+        const subscribed = await subscribeToPush();
+        if(subscribed){
+          notifyLocal("Reminders on", "You'll get a nudge here when a session's coming up or a check-in's overdue — even if the app's closed.");
+        } else {
+          notifyLocal("Reminders on", "You'll get a nudge here while the app's open. Background push isn't available on this device/browser.");
+        }
       } else {
         alert("Notifications are blocked — you can turn them on later from your browser's site settings.");
       }
@@ -5096,6 +5168,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   try{
     if(localStorage.getItem(NOTIFY_PREF_KEY) === "true" && "Notification" in window && Notification.permission === "granted"){
       state.notifyEnabled = true;
+      subscribeToPush().catch(()=>{}); // re-confirm the subscription row exists; no-op if it already does
     }
   }catch(e){}
   loadChatHistory().catch(()=>{});

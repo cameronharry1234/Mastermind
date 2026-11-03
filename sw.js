@@ -52,3 +52,44 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// Real push notifications — these arrive even if the app/tab is fully closed,
+// because the browser wakes this service worker up to handle them. The
+// payload is whatever JSON the send-push-reminders edge function sent:
+// { title, body }. If the payload can't be parsed for any reason, still show
+// something generic rather than silently dropping a push the OS already woke
+// us up for.
+self.addEventListener("push", (event) => {
+  let title = "Mastermind";
+  let body = "You have a new update.";
+  try {
+    if (event.data) {
+      const payload = event.data.json();
+      if (payload.title) title = payload.title;
+      if (payload.body) body = payload.body;
+    }
+  } catch (e) { /* fall back to the generic text above */ }
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: body,
+      icon: "./icon-192.png",
+      badge: "./icon-192.png",
+      tag: title, // collapses repeats of the same reminder kind
+    }).catch(() => {})
+  );
+});
+
+// Clicking the notification focuses an already-open tab if there is one,
+// otherwise opens a fresh one at the app root.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow("./");
+    })
+  );
+});
