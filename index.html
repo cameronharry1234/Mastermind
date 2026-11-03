@@ -65,8 +65,11 @@
     border:1.4px solid var(--gold);
     border-radius:50%;
     display:flex; align-items:center; justify-content:center;
-    font-family:'Space Mono',monospace;
-    font-size:11px; color:var(--gold);
+    /* Same ring+serif-M mark used on the gate (login) screen, just scaled up
+       ~1.3x relative to the circle so it reads clearly at nav size - this is
+       the one logo style, used everywhere, not a separate smaller variant. */
+    font-family:'Spectral',serif;
+    font-size:14px; color:var(--gold);
   }
   .ms-tabs{ display:flex; gap:4px; }
   .ms-tab-btn{
