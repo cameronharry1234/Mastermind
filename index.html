@@ -160,8 +160,8 @@
 
   /* --- Ask the mentor --- */
   .ms-ask-card{
-    background:#ffffff;
-    border:1px solid #c9dcf5;
+    background:var(--white);
+    border:1px solid var(--line);
     border-radius:6px;
     padding:28px;
     margin-bottom:20px;
@@ -172,7 +172,7 @@
     font-size:22px;
     font-weight:600;
     margin:0 0 6px;
-    color:#152238;
+    color:var(--ink);
   }
   textarea.ms-input, input.ms-input{
     width:100%;
@@ -280,13 +280,13 @@
     border-bottom-right-radius:1px;
   }
   .ms-msg-mastermind .ms-bubble{
-    background:#ffffff;
-    color:#152238;
-    border:1px solid #c9dcf5;
+    background:var(--white);
+    color:var(--ink);
+    border:1px solid var(--line);
     border-bottom-left-radius:1px;
   }
   .ms-ask-card .ms-sub-dim{
-    color:#5c6d88;
+    color:var(--ink-dim);
   }
   .ms-bubble-label{
     font-family:'Space Mono',monospace;
@@ -306,6 +306,71 @@
     cursor:pointer; text-decoration:underline; text-underline-offset:3px; padding:0;
   }
   .ms-reset-link:hover{ color:var(--sky-bright); }
+
+  /* Back navigation - always top-left of whatever page/panel it belongs to, so
+     people don't have to hunt for it (or scroll down) to go back. */
+  .ms-back-btn{
+    display:inline-flex; align-items:center; gap:6px;
+    background:none; border:none; cursor:pointer; padding:0;
+    color:var(--ink-dim);
+    font-family:'Space Mono',monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+    margin-bottom:18px;
+  }
+  .ms-back-btn:hover{ color:var(--sky-bright); }
+  .ms-back-btn svg{ width:15px; height:15px; }
+
+  /* --- Settings page: toggle rows, switches, small tab bar --- */
+  .ms-settings-toggle-row{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:16px 18px;
+    background:var(--sky-pale);
+    border:1px solid var(--line);
+    border-radius:6px;
+    margin:20px 0 22px;
+  }
+  .ms-settings-toggle-label{ font-family:'Spectral',serif; font-size:16px; color:var(--ink); }
+  .ms-switch{
+    position:relative; flex:0 0 auto;
+    width:44px; height:25px;
+    background:var(--line);
+    border:none; border-radius:13px;
+    cursor:pointer;
+    transition:background .2s ease;
+  }
+  .ms-switch-knob{
+    position:absolute; top:2.5px; left:2.5px;
+    width:20px; height:20px; border-radius:50%;
+    background:#fff;
+    box-shadow:0 1px 3px rgba(0,0,0,.3);
+    transition:transform .2s ease;
+  }
+  .ms-switch-on{ background:var(--sky); }
+  .ms-switch-on .ms-switch-knob{ transform:translateX(19px); }
+  .ms-switch:disabled{ opacity:.5; cursor:not-allowed; }
+  .ms-settings-tabs{
+    display:flex; gap:4px; flex-wrap:wrap;
+    border-bottom:1px solid var(--line);
+    margin-bottom:22px;
+  }
+  .ms-settings-tab{
+    background:none; border:none; cursor:pointer;
+    font-family:'Space Mono',monospace; font-size:11px; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--ink-dim);
+    padding:10px 14px;
+    border-bottom:2px solid transparent;
+    margin-bottom:-1px;
+    transition:color .15s ease, border-color .15s ease;
+  }
+  .ms-settings-tab:hover{ color:var(--ink); }
+  .ms-settings-tab.ms-active{ color:var(--sky); border-bottom-color:var(--sky); }
+  .ms-notify-pref-row{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:14px 0;
+    border-bottom:1px dotted var(--line);
+  }
+  .ms-notify-pref-row:last-child{ border-bottom:none; }
+  .ms-notify-pref-label{ font-size:14.5px; color:var(--ink); }
+  .ms-notify-pref-desc{ font-size:12.5px; color:var(--ink-dim); margin-top:2px; }
 
   .ms-loading{
     display:flex; align-items:center; gap:12px;
@@ -647,19 +712,53 @@
     font-family:'Space Mono',monospace; font-size:11px; color:var(--ink-dim);
     margin-top:6px; letter-spacing:.05em;
   }
-  .ms-quickstart{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
-  .ms-quick-chip{
-    background:var(--sky-pale);
-    border:1px solid var(--line);
-    color:var(--sky-deep);
+  .ms-suggest-row{ margin-bottom:16px; }
+  .ms-suggest-btn{
+    display:inline-flex; align-items:center; gap:8px;
+    background:transparent;
+    border:1.4px solid var(--line);
+    color:var(--ink-dim);
     font-family:'Inter',sans-serif;
     font-size:12.5px;
-    padding:8px 13px;
+    padding:9px 16px;
     border-radius:20px;
     cursor:pointer;
     transition:all .15s ease;
   }
-  .ms-quick-chip:hover{ background:var(--sky-pale-2); border-color:var(--sky-bright); }
+  .ms-suggest-btn svg{ width:14px; height:14px; transition:transform .35s ease; }
+  .ms-suggest-btn:hover svg{ transform:rotate(180deg); }
+  .ms-suggest-btn:hover{ background:var(--sky-pale); }
+
+  /* --- Saved chat threads: toggle button + dropdown list --- */
+  .ms-threads-toggle{
+    display:inline-flex; align-items:center; gap:6px;
+    background:transparent; border:1.4px solid var(--line); color:var(--ink-dim);
+    font-family:'Inter',sans-serif; font-size:12.5px;
+    padding:9px 16px; border-radius:20px; cursor:pointer; transition:all .15s ease;
+  }
+  .ms-threads-toggle:hover{ background:var(--sky-pale); }
+  .ms-threads-toggle svg{ width:14px; height:14px; }
+  .ms-threads-panel{
+    margin:10px 0 16px; padding:6px;
+    background:var(--white); border:1px solid var(--line); border-radius:8px;
+    max-height:260px; overflow-y:auto;
+  }
+  .ms-thread-row{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 10px; border-radius:6px; cursor:pointer;
+  }
+  .ms-thread-row:hover{ background:var(--sky-pale); }
+  .ms-thread-row.ms-thread-active{ background:var(--sky-pale); border:1px solid var(--sky); }
+  .ms-thread-row-main{ flex:1; min-width:0; }
+  .ms-thread-row-title{ font-size:13.5px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ms-thread-row-date{ font-size:11px; color:var(--ink-dim); margin-top:2px; }
+  .ms-thread-delete-btn{
+    flex:0 0 auto; background:none; border:none; cursor:pointer;
+    color:var(--ink-dim); font-size:15px; line-height:1; padding:4px 6px;
+    border-radius:4px;
+  }
+  .ms-thread-delete-btn:hover{ color:#b4463a; background:rgba(180,70,58,0.1); }
+  .ms-threads-empty{ padding:14px 10px; font-size:12.5px; color:var(--ink-dim); }
   @media (max-width:560px){
     .ms-chat-input-row{ flex-wrap:wrap; }
     .ms-attach-btn{ order:1; }
@@ -691,24 +790,18 @@
   }
   .ms-theme-home .ms-ask-card h2{ color:#152238; }
   .ms-theme-home .ms-ask-card .ms-sub-dim{ color:#5c6d88; }
+  /* Dark mode's own version of the hero "ask" card - a subtle navy gradient using
+     the dark-mode palette, instead of the light theme's white/pale-blue card.
+     (Previously this block just duplicated the light colors verbatim, which is
+     why the chat screen stayed white no matter which mode was active.) The
+     textarea, message bubble, reset link, and listening hint below all already
+     use the themed CSS variables in their base rules, so they adapt on their own
+     and don't need a dark-specific override here anymore. */
   .ms-dark .ms-ask-card{
-    background:#ffffff;
-    border:1px solid #c9dcf5;
-    color:#152238;
+    background:linear-gradient(180deg, var(--sky-pale) 0%, var(--sky-pale-2) 100%);
+    border:1px solid var(--line);
+    color:var(--ink);
   }
-  .ms-dark .ms-ask-card h2{ color:#152238; }
-  .ms-dark .ms-ask-card .ms-sub-dim{ color:#5c6d88; }
-  .ms-dark .ms-ask-card textarea.ms-input, .ms-dark .ms-ask-card input.ms-input{
-    background:#f4f8ff;
-    color:#152238;
-    border-color:#c9dcf5;
-  }
-  .ms-dark .ms-ask-card textarea.ms-input::placeholder, .ms-dark .ms-ask-card input.ms-input::placeholder{
-    color:#8a9ab0;
-  }
-  .ms-dark .ms-msg-mastermind .ms-bubble{ background:#ffffff; color:#152238; border-color:#c9dcf5; }
-  .ms-dark .ms-chat-controls .ms-reset-link{ color:#5c6d88; }
-  .ms-dark .ms-listening-hint{ color:#5c6d88; }
   .ms-theme-home .ms-btn{ background:var(--azure-vivid); }
   .ms-theme-home .ms-btn:hover{ background:#1f88ee; }
   .ms-theme-home textarea.ms-input:focus, .ms-theme-home input.ms-input:focus{
@@ -969,7 +1062,6 @@
   .ms-dark .ms-radio.ms-checked{ color:var(--sky-bright); }
   .ms-dark .ms-roster-action-btn:hover{ color:var(--sky-bright); }
   .ms-dark .ms-speak-btn:hover{ color:var(--sky-bright); }
-  .ms-dark .ms-quick-chip{ color:var(--sky-bright); }
   .ms-dark.ms-theme-home .ms-facet-item .ms-facet-name{ color:var(--sky-bright); }
 </style>
 
@@ -1370,6 +1462,7 @@
   const NOTIFY_PREF_KEY = "mastermind:notifypref";
   const NOTIFY_LASTSEEN_KEY = "mastermind:notifylastseen"; // dedupe so reminders fire once a day, not every poll
   const CHAT_STORAGE_KEY = "mastermind:mychat";
+  const CHAT_THREADS_KEY = "mastermind:chatthreads";
   const FORGE_HISTORY_MAX = 60;
   const MAX_PDF_BYTES = 3.5 * 1024 * 1024;
 
@@ -1473,6 +1566,7 @@
     const sections = isTerms ? TERMS_SECTIONS : PRIVACY_SECTIONS;
     return `
       <div class="ms-shell-inner" style="max-width:640px; margin:0 auto; padding:28px 18px 60px;">
+        <button class="ms-back-btn" id="ms-legal-close-btn">← Back</button>
         <div class="ms-eyebrow">${isTerms ? "Terms of Service" : "Privacy Policy"}</div>
         <h1 class="ms-title">${isTerms ? "Terms of<br/><em>Service.</em>" : "Privacy<br/><em>Policy.</em>"}</h1>
         <p class="ms-sub-dim">Last updated ${esc(LEGAL_LAST_UPDATED)}.</p>
@@ -1482,7 +1576,6 @@
             <p>${esc(s.b)}</p>
           </div>
         `).join("")}
-        <button class="ms-btn ms-btn-ghost" id="ms-legal-close-btn" style="margin-top:28px;">← Back</button>
       </div>
     `;
   }
@@ -1590,8 +1683,12 @@ When advising: identify which pillar(s) above are actually relevant to the speci
     groupForm: { mode:"create", name:"", code:"", error:null, loading:false },
     darkMode: false,
     notifyEnabled: false,
+    notifyPrefs: { session_reminders:true, checkin_reminders:true, loaded:false, saving:false },
+    settingsTab: "notifications",
     listening: false,
-    chat: { messages:[], input:"", loading:false, error:null, pendingFiles:[] },
+    chat: { messages:[], input:"", loading:false, error:null, pendingFiles:[], suggestIdx:null, threadId:null },
+    chatThreads: [],
+    chatThreadsOpen: false,
     rosterCount: 0,
     speakingId: null,
     nextSession: null,
@@ -1665,11 +1762,16 @@ When advising: identify which pillar(s) above are actually relevant to the speci
       placeholder:"e.g. I overthink big decisions for weeks, but I'm decisive and fast once I've actually committed to something." }
   ];
 
-  const QUICK_PROMPTS = [
-    { label:"📸 Image audit", text:"I've attached a photo — give me an image audit: fit, colour harmony, grooming, and posture, plus what to fix first.", needsPhoto:true },
-    { label:"🎯 Personal image score", text:"Give me a personal image score out of 10 across wardrobe, fit, hair, skin, fitness, confidence, etiquette, professionalism, and communication, based on what I tell you. Ask me what you need to know first." },
-    { label:"👔 Outfit builder", text:"Help me build an outfit. Ask me my age, height, weight, body type, budget, climate, job, skin tone, hair colour, and the purpose of the outfit, then put a full outfit together." },
-    { label:"📅 Occasion assistant", text:"I need an outfit for a specific occasion. Ask me what it is, indoor or outdoor, the season, and the dress code, then build the outfit." }
+  // One suggested opening line per pillar (in the same order as FACETS), used by
+  // the cycling "Suggest a prompt" button below the chat input. Each click moves
+  // to the next pillar and recolors the button to match it.
+  const PILLAR_PROMPTS = [
+    { text:"I want to get serious about my finances — where do I actually start?" },
+    { text:"I keep starting strong and falling off after a week or two — what's actually going on?" },
+    { text:"I've got a tricky negotiation coming up — help me think through how to approach it." },
+    { text:"I need to have a hard conversation with someone close to me — how do I approach it?" },
+    { text:"Give me a personal image score out of 10 across wardrobe, fit, grooming, fitness, and confidence — ask me what you need to know first." },
+    { text:"I want to start thinking bigger than just my own goals — where do I even begin?" }
   ];
 
   const app = document.getElementById("ms-app");
@@ -1793,6 +1895,51 @@ When advising: identify which pillar(s) above are actually relevant to the speci
         alert("Notifications are blocked — you can turn them on later from your browser's site settings.");
       }
     }catch(e){ console.error(e); }
+    render();
+  }
+
+  // Per-type notification prefs (Settings -> Notifications). These gate which
+  // reminder kinds the send-push-reminders Edge Function will actually send -
+  // separate from the master on/off (the bell icon / state.notifyEnabled),
+  // which controls whether this device has a push subscription at all.
+  async function loadNotifyPrefs(){
+    if(!state.profile) return;
+    try{
+      const { data, error } = await sb.from("notification_prefs")
+        .select("session_reminders, checkin_reminders")
+        .eq("profile_id", state.profile.id)
+        .maybeSingle();
+      if(error) throw error;
+      state.notifyPrefs = {
+        session_reminders: data ? data.session_reminders : true,
+        checkin_reminders: data ? data.checkin_reminders : true,
+        loaded: true,
+        saving: false
+      };
+    }catch(e){
+      console.error(e);
+      state.notifyPrefs = { session_reminders:true, checkin_reminders:true, loaded:true, saving:false };
+    }
+  }
+
+  async function toggleNotifyPref(key){
+    if(!state.profile || state.notifyPrefs.saving) return;
+    state.notifyPrefs[key] = !state.notifyPrefs[key];
+    state.notifyPrefs.saving = true;
+    render();
+    try{
+      const { error } = await sb.from("notification_prefs").upsert({
+        profile_id: state.profile.id,
+        session_reminders: state.notifyPrefs.session_reminders,
+        checkin_reminders: state.notifyPrefs.checkin_reminders,
+        updated_at: new Date().toISOString()
+      });
+      if(error) throw error;
+    }catch(e){
+      console.error(e);
+      state.notifyPrefs[key] = !state.notifyPrefs[key]; // revert on failure
+    }
+    state.notifyPrefs.saving = false;
     render();
   }
 
@@ -1930,6 +2077,30 @@ When advising: identify which pillar(s) above are actually relevant to the speci
 
   function clipIcon(){
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"/></svg>`;
+  }
+
+  // Recycle/refresh-style glyph for the "Suggest a prompt" button — two curved
+  // arrows chasing each other, signalling "cycles to a new one" each click.
+  function recycleIcon(){
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`;
+  }
+
+  // Clock-with-list glyph for the saved-threads toggle.
+  function historyIcon(){
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg>`;
+  }
+
+  // Short relative-time label ("just now", "3h ago", "2d ago") for thread rows.
+  function relativeTimeShort(ts){
+    const diffMs = Date.now() - ts;
+    const mins = Math.floor(diffMs / 60000);
+    if(mins < 1) return "just now";
+    if(mins < 60) return mins + "m ago";
+    const hrs = Math.floor(mins / 60);
+    if(hrs < 24) return hrs + "h ago";
+    const days = Math.floor(hrs / 24);
+    if(days < 30) return days + "d ago";
+    return new Date(ts).toLocaleDateString();
   }
 
   function micIcon(active){
@@ -2078,7 +2249,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
       const block = (data.content || []).find(b=>b.type==="text");
       if(!block) throw new Error("No response");
       state.chat.messages.push({ role:"assistant", content: block.text.trim() });
-      saveChatHistory();
+      persistActiveThread();
     }catch(e){
       console.error(e);
       state.chat.error = "Couldn't reach Mastermind just now — try again in a moment.";
@@ -2133,34 +2304,117 @@ When advising: identify which pillar(s) above are actually relevant to the speci
   }
 
   // Chat history is this device's own scratch space, not shared group data —
-  // plain localStorage, same as dark mode / notification prefs.
-  async function loadChatHistory(){
-    try{
-      const raw = localStorage.getItem(CHAT_STORAGE_KEY);
-      if(raw){
-        const saved = JSON.parse(raw);
-        if(Array.isArray(saved)) state.chat.messages = saved;
+  // plain localStorage, same as dark mode / notification prefs. Threads are
+  // stored as an array of { id, title, messages, updatedAt }; state.chat
+  // holds the live working copy of whichever thread is active
+  // (state.chat.threadId, null for a not-yet-saved new chat).
+
+  function newThreadId(){
+    return 'th_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  }
+
+  function lightweightMessages(messages){
+    return messages.map(m=>{
+      if(m.attachments && m.attachments.length){
+        const note = m.attachments.map(a=>`[attached: ${a.name}]`).join(" ");
+        return { role:m.role, content: (m.content ? m.content + " " : "") + note };
       }
-    }catch(e){ /* no history yet */ }
+      return { role:m.role, content:m.content };
+    });
   }
 
-  async function saveChatHistory(){
+  function threadTitleFrom(messages){
+    const firstUser = messages.find(m=>m.role==='user' && m.content);
+    if(!firstUser) return "New chat";
+    const t = firstUser.content.trim().replace(/\s+/g,' ');
+    return t.length > 48 ? t.slice(0,48) + "…" : (t || "New chat");
+  }
+
+  async function loadChatThreads(){
     try{
-      const lightweight = state.chat.messages.map(m=>{
-        if(m.attachments && m.attachments.length){
-          const note = m.attachments.map(a=>`[attached: ${a.name}]`).join(" ");
-          return { role:m.role, content: (m.content ? m.content + " " : "") + note };
+      const raw = localStorage.getItem(CHAT_THREADS_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      state.chatThreads = Array.isArray(list) ? list : [];
+    }catch(e){ state.chatThreads = []; }
+
+    // One-time migration from the old single-thread key, if present.
+    if(!state.chatThreads.length){
+      try{
+        const oldRaw = localStorage.getItem(CHAT_STORAGE_KEY);
+        if(oldRaw){
+          const oldMessages = JSON.parse(oldRaw);
+          if(Array.isArray(oldMessages) && oldMessages.length){
+            const thread = { id:newThreadId(), title:threadTitleFrom(oldMessages), messages:oldMessages, updatedAt:Date.now() };
+            state.chatThreads = [thread];
+            saveChatThreads();
+            state.chat.threadId = thread.id;
+            state.chat.messages = oldMessages;
+          }
+          localStorage.removeItem(CHAT_STORAGE_KEY);
         }
-        return { role:m.role, content:m.content };
-      });
-      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(lightweight));
-    }catch(e){ console.error(e); }
+      }catch(e){ /* ignore */ }
+    }
+
+    if(!state.chat.threadId && state.chatThreads.length){
+      state.chat.threadId = state.chatThreads[0].id;
+      state.chat.messages = state.chatThreads[0].messages;
+    }
   }
 
-  function resetChat(){
-    state.chat = { messages:[], input:"", loading:false, error:null, pendingFiles:[], fileError:null };
-    try{ localStorage.removeItem(CHAT_STORAGE_KEY); }catch(e){}
+  function saveChatThreads(){
+    try{ localStorage.setItem(CHAT_THREADS_KEY, JSON.stringify(state.chatThreads)); }catch(e){ console.error(e); }
+  }
+
+  // Persists the live working thread (state.chat) back into state.chatThreads,
+  // creating a new saved thread the first time it has any messages.
+  function persistActiveThread(){
+    if(!state.chat.messages.length) return;
+    const lightweight = lightweightMessages(state.chat.messages);
+    if(!state.chat.threadId) state.chat.threadId = newThreadId();
+    const idx = state.chatThreads.findIndex(t=>t.id===state.chat.threadId);
+    const thread = { id:state.chat.threadId, title:threadTitleFrom(state.chat.messages), messages:lightweight, updatedAt:Date.now() };
+    if(idx === -1) state.chatThreads.unshift(thread);
+    else state.chatThreads[idx] = thread;
+    state.chatThreads.sort((a,b)=>b.updatedAt - a.updatedAt);
+    saveChatThreads();
+  }
+
+  function startNewThread(){
+    persistActiveThread();
+    state.chat = { messages:[], input:"", loading:false, error:null, pendingFiles:[], fileError:null, suggestIdx:null, threadId:null };
+    state.chatThreadsOpen = false;
     render();
+  }
+
+  function switchToThread(id){
+    if(id === state.chat.threadId){ state.chatThreadsOpen = false; render(); return; }
+    persistActiveThread();
+    const thread = state.chatThreads.find(t=>t.id===id);
+    if(!thread) return;
+    state.chat = { messages:thread.messages, input:"", loading:false, error:null, pendingFiles:[], fileError:null, suggestIdx:null, threadId:thread.id };
+    state.chatThreadsOpen = false;
+    render();
+  }
+
+  function deleteThread(id){
+    state.chatThreads = state.chatThreads.filter(t=>t.id!==id);
+    saveChatThreads();
+    if(state.chat.threadId === id){
+      state.chat = { messages:[], input:"", loading:false, error:null, pendingFiles:[], fileError:null, suggestIdx:null, threadId:null };
+    }
+    render();
+  }
+
+  // Cycles the "Suggest a prompt" button to the next of the 6 pillars, drops
+  // that pillar's starter line into the input, and focuses it so the member can
+  // send it as-is or edit it first.
+  function cycleSuggestedPrompt(){
+    const next = state.chat.suggestIdx === null ? 0 : (state.chat.suggestIdx + 1) % FACETS.length;
+    state.chat.suggestIdx = next;
+    state.chat.input = PILLAR_PROMPTS[next].text;
+    render();
+    const ta = document.getElementById("ms-chat-input");
+    if(ta) ta.focus();
   }
 
   function scrollThreadToBottom(){
@@ -2268,10 +2522,28 @@ When advising: identify which pillar(s) above are actually relevant to the speci
         <h2>Talk to Mastermind</h2>
         <p class="ms-sub-dim">An ongoing conversation — ask follow-ups, push back, keep going. It's saved privately to your account, so it's still here next time you open this page. For a full tailored development plan to bring to the group, use the Roundtable tab instead.</p>
 
-        ${!state.chat.messages.length ? `
-        <div class="ms-quickstart">
-          ${QUICK_PROMPTS.map((q,i)=>`<button class="ms-quick-chip" data-quick-idx="${i}">${esc(q.label)}</button>`).join("")}
+        <div class="ms-suggest-row" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <button class="ms-suggest-btn" id="ms-suggest-prompt" type="button"
+            style="${state.chat.suggestIdx===null ? "" : `border-color:${FACETS[state.chat.suggestIdx].color}; color:${FACETS[state.chat.suggestIdx].color};`}">
+            ${recycleIcon()} ${state.chat.suggestIdx===null ? "Suggest a prompt" : `Another — ${esc(FACETS[state.chat.suggestIdx].name)}`}
+          </button>
+          <button class="ms-threads-toggle" id="ms-threads-toggle" type="button">
+            ${historyIcon()} Chats${state.chatThreads.length ? ` (${state.chatThreads.length})` : ""}
+          </button>
         </div>
+
+        ${state.chatThreadsOpen ? `
+          <div class="ms-threads-panel" id="ms-threads-panel">
+            ${state.chatThreads.length ? state.chatThreads.map(t=>`
+              <div class="ms-thread-row ${t.id===state.chat.threadId ? 'ms-thread-active' : ''}" data-switch-thread="${esc(t.id)}">
+                <div class="ms-thread-row-main">
+                  <div class="ms-thread-row-title">${esc(t.title)}</div>
+                  <div class="ms-thread-row-date">${relativeTimeShort(t.updatedAt)}</div>
+                </div>
+                <button class="ms-thread-delete-btn" data-delete-thread="${esc(t.id)}" title="Delete this chat" aria-label="Delete this chat">×</button>
+              </div>
+            `).join("") : `<div class="ms-threads-empty">No saved chats yet — anything you send here gets saved automatically.</div>`}
+          </div>
         ` : ""}
 
         <div class="ms-thread" id="ms-thread">
@@ -2326,7 +2598,7 @@ When advising: identify which pillar(s) above are actually relevant to the speci
         ${state.chat.error ? `<div class="ms-error">${esc(state.chat.error)}</div>` : ""}
         ${state.chat.messages.length ? `
           <div class="ms-chat-controls">
-            <button class="ms-reset-link" id="ms-chat-reset">Start fresh</button>
+            <button class="ms-reset-link" id="ms-chat-reset">Start fresh — save this one &amp; begin a new chat</button>
           </div>
         ` : ""}
       </div>
@@ -2352,6 +2624,22 @@ When advising: identify which pillar(s) above are actually relevant to the speci
         .upsert({ group_id: state.group.id, date: dateStr, updated_at: new Date().toISOString() });
       if(error) throw error;
       state.nextSession = { date: dateStr, setAt: Date.now() };
+    }catch(e){ console.error(e); }
+    state.editingSessionDate = false;
+    render();
+  }
+
+  // Clears a past/stale date without requiring a new one to be picked right away
+  // - leaves the row as "not set yet" rather than deleting it outright (members
+  // only have UPDATE rights on this table, not DELETE).
+  async function clearNextSession(){
+    if(!state.group) return;
+    try{
+      const { error } = await sb.from("next_sessions")
+        .update({ date: null, updated_at: new Date().toISOString() })
+        .eq("group_id", state.group.id);
+      if(error) throw error;
+      state.nextSession = null;
     }catch(e){ console.error(e); }
     state.editingSessionDate = false;
     render();
@@ -2742,6 +3030,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
           <span class="ms-session-value">${state.nextSession && state.nextSession.date ? esc(formatSessionDate(state.nextSession.date)) : "Not set yet"}</span>
           <button class="ms-session-edit-btn" id="ms-session-edit">${state.nextSession && state.nextSession.date ? "Update" : "Set a date"}</button>
           ${state.nextSession && state.nextSession.date ? `<button class="ms-session-edit-btn" id="ms-session-ics">Add to calendar</button>` : ""}
+          ${state.nextSession && state.nextSession.date ? `<button class="ms-session-edit-btn" id="ms-session-clear" title="Remove this date without setting a new one yet">Clear</button>` : ""}
         `}
       </div>
 
@@ -2895,6 +3184,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
 
   function renderRtDashboard(){
     return `
+      <button class="ms-back-btn" id="ms-rt-dash-back">← Back</button>
       <div class="ms-eyebrow">Roundtable — Dashboard</div>
       ${PROVERBS_BANNER}
       <h1 class="ms-title">Who's <em>on pace.</em></h1>
@@ -2917,9 +3207,6 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       ${!state.dash.loading ? state.dash.members.map(memberCardHtml).join("") : ""}
       ${(!state.dash.loading && !state.dash.members.length) ? `<p class="ms-sub">No one's set up a profile yet — you're first.</p>` : ""}
 
-      <div class="ms-actions">
-        <button class="ms-btn ms-btn-ghost" id="ms-rt-dash-back">← Back</button>
-      </div>
       <div class="ms-footer-note">DASHBOARD · SOCIAL PRESSURE, PUT TO GOOD USE</div>
     `;
   }
@@ -2983,6 +3270,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     const activePdf = forgeActivePdf();
     const activeSource = hasBoth ? (state.forge.activeSource === 'manual' ? 'manual' : 'profile') : null;
     return `
+      <button class="ms-back-btn" id="ms-rt-forge-back">← Back</button>
       <div class="ms-eyebrow">Roundtable — Live Session</div>
       ${PROVERBS_BANNER}
       <h1 class="ms-title">Welcome to <em>The Forge.</em></h1>
@@ -3039,9 +3327,6 @@ Keep every string concise. Do not repeat things they say they've already tried. 
         </div>
       </div>
 
-      <div class="ms-actions">
-        <button class="ms-btn ms-btn-ghost" id="ms-rt-forge-back">← Back</button>
-      </div>
       <div class="ms-footer-note">THE FORGE · WHERE THE SESSION ACTUALLY HAPPENS</div>
     `;
   }
@@ -3244,6 +3529,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       `).join("");
     }
     return `
+      <button class="ms-back-btn" id="ms-rt-back">← Back</button>
       <div class="ms-eyebrow">Roundtable — Group Roster</div>
       ${PROVERBS_BANNER}
       <h1 class="ms-title">Who's <em>prepared.</em></h1>
@@ -3251,10 +3537,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       ${body}
       <input type="file" id="ms-roster-pdf-file" accept="application/pdf,.pdf" style="display:none;"/>
       ${state.rt.uploadError ? `<div class="ms-error">${esc(state.rt.uploadError)}</div>` : ""}
-      <div class="ms-actions">
-        <button class="ms-btn ms-btn-ghost" id="ms-rt-back">← Back</button>
-        ${state.rt.roster.length ? `<button class="ms-btn ms-btn-ghost" id="ms-rt-export-all">Grab everyone's one-sheets</button>` : ""}
-      </div>
+      ${state.rt.roster.length ? `<div class="ms-actions"><button class="ms-btn ms-btn-ghost" id="ms-rt-export-all">Grab everyone's one-sheets</button></div>` : ""}
       <div class="ms-footer-note">ROUNDTABLE · PREP FOR YOUR NEXT MASTERMIND SESSION</div>
     `;
   }
@@ -4433,69 +4716,119 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     }
   }
 
+  function renderNotificationsTab(){
+    const np = state.notifyPrefs;
+    return `
+      <p class="ms-sub-dim" style="margin-top:0;">Reminders arrive as push notifications, even with the app closed, once the bell above is on for this device. These two switches control which kinds you actually get sent.</p>
+      ${!state.notifyEnabled ? `<div class="ms-notice">Push notifications are off for this device — turn on the bell (top nav) first, then pick which reminders you want below.</div>` : ""}
+      <div class="ms-notify-pref-row">
+        <div>
+          <div class="ms-notify-pref-label">Session reminders</div>
+          <div class="ms-notify-pref-desc">A nudge the day before your group's next session.</div>
+        </div>
+        <button class="ms-switch ${np.session_reminders?'ms-switch-on':''}" id="ms-notify-session-toggle" role="switch" aria-checked="${np.session_reminders}" aria-label="Toggle session reminders" ${!state.profile?'disabled':''}><span class="ms-switch-knob"></span></button>
+      </div>
+      <div class="ms-notify-pref-row">
+        <div>
+          <div class="ms-notify-pref-label">Check-in reminders</div>
+          <div class="ms-notify-pref-desc">A nudge when you've gone quiet on weekly check-ins.</div>
+        </div>
+        <button class="ms-switch ${np.checkin_reminders?'ms-switch-on':''}" id="ms-notify-checkin-toggle" role="switch" aria-checked="${np.checkin_reminders}" aria-label="Toggle check-in reminders" ${!state.profile?'disabled':''}><span class="ms-switch-knob"></span></button>
+      </div>
+      ${!state.profile ? `<p class="ms-sub-dim" style="margin-top:10px;">Set up a profile first — these are saved per-person.</p>` : ""}
+    `;
+  }
+
+  function renderBillingTab(isAdmin){
+    return `
+      <h3 style="margin-top:0;">Billing — ${esc(state.group.name)}</h3>
+      <p class="ms-sub-dim">The AI mentor (chat, one-sheets, check-in analysis) is billed per group — one subscription covers every member. Everything else in Mastermind stays free.</p>
+      ${state.billing.loading ? `<div class="ms-loading"><div class="ms-spinner"></div></div>` : `
+        <p><strong>${esc(billingStatusLabel())}</strong></p>
+        ${state.billing.error ? `<div class="ms-error">${esc(state.billing.error)}</div>` : ""}
+        ${isAdmin && state.billing.status !== 'active' ? `
+          <div class="ms-actions" style="margin-top:8px;">
+            <button class="ms-btn ms-btn-gold" id="ms-upgrade-btn" ${state.billing.checkoutLoading?'disabled':''}>${state.billing.checkoutLoading ? "Redirecting..." : "Upgrade — £12/month"}</button>
+          </div>
+        ` : (!isAdmin && state.billing.status !== 'active' ? `<p class="ms-sub-dim">Ask a group admin to upgrade from their Settings panel.</p>` : "")}
+      `}
+    `;
+  }
+
+  function renderGroupTab(isAdmin, m){
+    return `
+      <h3 style="margin-top:0;">This group — ${esc(state.group.name)}</h3>
+      ${isAdmin ? `
+        <p class="ms-sub-dim">You're an admin. You can remove members or promote someone else to admin.</p>
+        ${m.error ? `<div class="ms-error">${esc(m.error)}</div>` : ""}
+        ${m.loading ? `<div class="ms-loading"><div class="ms-spinner"></div></div>` : `
+          <ul style="list-style:none; padding:0; margin:12px 0;">
+            ${m.list.map(mem=>`
+              <li style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px dotted rgba(18,58,114,0.15);">
+                <span>${esc(mem.name)} ${mem.isMe ? '<em>(you)</em>' : ''} <span class="ms-os-source">— ${esc(mem.role)}</span></span>
+                <span style="display:flex; gap:6px;">
+                  ${(!mem.isMe && mem.role !== 'admin') ? `<button class="ms-btn ms-btn-ghost" style="font-size:11px; padding:4px 10px;" data-promote="${esc(mem.userId)}">Make admin</button>` : ""}
+                  ${!mem.isMe ? `<button class="ms-btn ms-btn-ghost" style="font-size:11px; padding:4px 10px;" data-remove="${esc(mem.userId)}">Remove</button>` : ""}
+                </span>
+              </li>
+            `).join("")}
+          </ul>
+        `}
+      ` : ""}
+      <button class="ms-btn ms-btn-ghost" id="ms-leave-group-btn" style="margin-top:8px;">Leave this group</button>
+    `;
+  }
+
+  function renderAccountTab(d){
+    return `
+      <h3 style="margin-top:0;">Danger zone</h3>
+      <p class="ms-sub-dim">Deleting your account permanently removes your profile, goals, check-ins, roster entries, and uploaded one-sheets across every group — including other people's reactions and comments on your check-ins. This can't be undone.</p>
+      <input type="text" class="ms-input" id="ms-delete-confirm" placeholder="Type DELETE to confirm" value="${esc(d.confirmText)}" style="max-width:260px; margin:10px 0;"/>
+      ${d.error ? `<div class="ms-error">${esc(d.error)}</div>` : ""}
+      <div class="ms-actions">
+        <button class="ms-btn" id="ms-delete-account-btn" style="background:#b4463a; color:#fff;" ${d.loading?'disabled':''}>${d.loading ? "Deleting..." : "Delete my account"}</button>
+      </div>
+      <p class="ms-sub-dim" style="margin-top:24px; opacity:0.6; font-size:11px;">
+        <a href="#" id="ms-account-terms-link" style="color:var(--ink-dim); text-decoration:underline;">Terms of Service</a> &middot;
+        <a href="#" id="ms-account-privacy-link" style="color:var(--ink-dim); text-decoration:underline;">Privacy Policy</a>
+      </p>
+    `;
+  }
+
   function renderAccountPanel(){
     const isAdmin = state.group && state.group.role === "admin";
     const m = state.accountMembers;
     const d = state.accountDanger;
+    const tabs = [
+      { key:"notifications", label:"Notifications" },
+      ...(state.group ? [{ key:"billing", label:"Billing" }, { key:"group", label:"Group" }] : []),
+      { key:"account", label:"Account" }
+    ];
+    const activeTab = tabs.some(t=>t.key===state.settingsTab) ? state.settingsTab : tabs[0].key;
     return `
       <div class="ms-shell-inner" style="max-width:640px; margin:0 auto; padding:28px 18px 60px;">
+        <button class="ms-back-btn" id="ms-account-close-btn">← Back</button>
         <div class="ms-eyebrow">Account</div>
         <h1 class="ms-title">Settings &amp;<br/><em>account.</em></h1>
 
-        ${state.group ? `
-          <div class="ms-os-section" style="margin-top:24px;">
-            <h3>Billing — ${esc(state.group.name)}</h3>
-            <p class="ms-sub-dim">The AI mentor (chat, one-sheets, check-in analysis) is billed per group — one subscription covers every member. Everything else in Mastermind stays free.</p>
-            ${state.billing.loading ? `<div class="ms-loading"><div class="ms-spinner"></div></div>` : `
-              <p><strong>${esc(billingStatusLabel())}</strong></p>
-              ${state.billing.error ? `<div class="ms-error">${esc(state.billing.error)}</div>` : ""}
-              ${isAdmin && state.billing.status !== 'active' ? `
-                <div class="ms-actions" style="margin-top:8px;">
-                  <button class="ms-btn ms-btn-gold" id="ms-upgrade-btn" ${state.billing.checkoutLoading?'disabled':''}>${state.billing.checkoutLoading ? "Redirecting..." : "Upgrade — £12/month"}</button>
-                </div>
-              ` : (!isAdmin && state.billing.status !== 'active' ? `<p class="ms-sub-dim">Ask a group admin to upgrade from their Settings panel.</p>` : "")}
-            `}
+        <div class="ms-settings-toggle-row">
+          <div>
+            <div class="ms-settings-toggle-label">Dark mode</div>
+            <p class="ms-sub-dim" style="margin:2px 0 0;">Switch the whole app's colour theme.</p>
           </div>
-          <hr class="ms-os-divider"/>
-          <div class="ms-os-section">
-            <h3>This group — ${esc(state.group.name)}</h3>
-            ${isAdmin ? `
-              <p class="ms-sub-dim">You're an admin. You can remove members or promote someone else to admin.</p>
-              ${m.error ? `<div class="ms-error">${esc(m.error)}</div>` : ""}
-              ${m.loading ? `<div class="ms-loading"><div class="ms-spinner"></div></div>` : `
-                <ul style="list-style:none; padding:0; margin:12px 0;">
-                  ${m.list.map(mem=>`
-                    <li style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px dotted rgba(18,58,114,0.15);">
-                      <span>${esc(mem.name)} ${mem.isMe ? '<em>(you)</em>' : ''} <span class="ms-os-source">— ${esc(mem.role)}</span></span>
-                      <span style="display:flex; gap:6px;">
-                        ${(!mem.isMe && mem.role !== 'admin') ? `<button class="ms-btn ms-btn-ghost" style="font-size:11px; padding:4px 10px;" data-promote="${esc(mem.userId)}">Make admin</button>` : ""}
-                        ${!mem.isMe ? `<button class="ms-btn ms-btn-ghost" style="font-size:11px; padding:4px 10px;" data-remove="${esc(mem.userId)}">Remove</button>` : ""}
-                      </span>
-                    </li>
-                  `).join("")}
-                </ul>
-              `}
-            ` : ""}
-            <button class="ms-btn ms-btn-ghost" id="ms-leave-group-btn" style="margin-top:8px;">Leave this group</button>
-          </div>
-          <hr class="ms-os-divider"/>
-        ` : ""}
-
-        <div class="ms-os-section">
-          <h3>Danger zone</h3>
-          <p class="ms-sub-dim">Deleting your account permanently removes your profile, goals, check-ins, roster entries, and uploaded one-sheets across every group — including other people's reactions and comments on your check-ins. This can't be undone.</p>
-          <input type="text" class="ms-input" id="ms-delete-confirm" placeholder="Type DELETE to confirm" value="${esc(d.confirmText)}" style="max-width:260px; margin:10px 0;"/>
-          ${d.error ? `<div class="ms-error">${esc(d.error)}</div>` : ""}
-          <div class="ms-actions">
-            <button class="ms-btn" id="ms-delete-account-btn" style="background:#b4463a; color:#fff;" ${d.loading?'disabled':''}>${d.loading ? "Deleting..." : "Delete my account"}</button>
-          </div>
+          <button class="ms-switch ${state.darkMode?'ms-switch-on':''}" id="ms-settings-dark-toggle" role="switch" aria-checked="${state.darkMode}" aria-label="Toggle dark mode"><span class="ms-switch-knob"></span></button>
         </div>
 
-        <p class="ms-sub-dim" style="margin-top:24px; opacity:0.6; font-size:11px;">
-          <a href="#" id="ms-account-terms-link" style="color:var(--ink-dim); text-decoration:underline;">Terms of Service</a> &middot;
-          <a href="#" id="ms-account-privacy-link" style="color:var(--ink-dim); text-decoration:underline;">Privacy Policy</a>
-        </p>
-        <button class="ms-btn ms-btn-ghost" id="ms-account-close-btn" style="margin-top:16px;">← Back</button>
+        <div class="ms-settings-tabs">
+          ${tabs.map(t=>`<button class="ms-settings-tab ${activeTab===t.key?'ms-active':''}" data-settings-tab="${t.key}">${esc(t.label)}</button>`).join("")}
+        </div>
+
+        <div class="ms-settings-panel">
+          ${activeTab === 'notifications' ? renderNotificationsTab() : ""}
+          ${activeTab === 'billing' && state.group ? renderBillingTab(isAdmin) : ""}
+          ${activeTab === 'group' && state.group ? renderGroupTab(isAdmin, m) : ""}
+          ${activeTab === 'account' ? renderAccountTab(d) : ""}
+        </div>
       </div>
     `;
   }
@@ -4521,6 +4854,19 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     if(deleteBtn) deleteBtn.addEventListener("click", deleteMyAccount);
     const closeBtn = document.getElementById("ms-account-close-btn");
     if(closeBtn) closeBtn.addEventListener("click", ()=>{ state.showAccount = false; render(); });
+    const settingsDarkToggle = document.getElementById("ms-settings-dark-toggle");
+    if(settingsDarkToggle) settingsDarkToggle.addEventListener("click", ()=>{
+      state.darkMode = !state.darkMode;
+      try{ localStorage.setItem(DARKMODE_STORAGE_KEY, state.darkMode ? "true" : "false"); }catch(e){}
+      render();
+    });
+    document.querySelectorAll("[data-settings-tab]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{ state.settingsTab = btn.dataset.settingsTab; render(); });
+    });
+    const notifySessionToggle = document.getElementById("ms-notify-session-toggle");
+    if(notifySessionToggle) notifySessionToggle.addEventListener("click", ()=>toggleNotifyPref("session_reminders"));
+    const notifyCheckinToggle = document.getElementById("ms-notify-checkin-toggle");
+    if(notifyCheckinToggle) notifyCheckinToggle.addEventListener("click", ()=>toggleNotifyPref("checkin_reminders"));
   }
 
   function renderProfileSetup(){
@@ -4584,7 +4930,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       state.profileSetup.saving = true; state.profileSetup.error = null; render();
       try{
         await withTimeout(saveProfile(state.profileSetup.name, state.profileSetup.color));
-        await withTimeout(loadChatHistory()).catch(()=>{});
+        await withTimeout(loadChatThreads()).catch(()=>{});
       }catch(e){
         console.error(e);
         state.profileSetup.saving = false;
@@ -4977,7 +5323,22 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     const btn = document.getElementById("ms-chat-send");
     if(btn) btn.addEventListener("click", sendChatMessage);
     const resetBtn = document.getElementById("ms-chat-reset");
-    if(resetBtn) resetBtn.addEventListener("click", ()=>{ stopSpeaking(); resetChat(); });
+    if(resetBtn) resetBtn.addEventListener("click", ()=>{ stopSpeaking(); startNewThread(); });
+    const threadsToggle = document.getElementById("ms-threads-toggle");
+    if(threadsToggle) threadsToggle.addEventListener("click", ()=>{ state.chatThreadsOpen = !state.chatThreadsOpen; render(); });
+    document.querySelectorAll("[data-switch-thread]").forEach(el=>{
+      el.addEventListener("click", (e)=>{
+        if(e.target.closest("[data-delete-thread]")) return;
+        stopSpeaking();
+        switchToThread(el.dataset.switchThread);
+      });
+    });
+    document.querySelectorAll("[data-delete-thread]").forEach(el=>{
+      el.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        if(confirm("Delete this saved chat? This can't be undone.")) deleteThread(el.dataset.deleteThread);
+      });
+    });
     document.querySelectorAll(".ms-speak-btn[data-speak-id]").forEach(el=>{
       el.addEventListener("click", ()=>{ toggleSpeak(el.dataset.speakText, el.dataset.speakId); });
     });
@@ -4995,19 +5356,8 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     document.querySelectorAll(".ms-attach-remove[data-remove-idx]").forEach(el=>{
       el.addEventListener("click", ()=>removePendingFile(parseInt(el.dataset.removeIdx,10)));
     });
-    document.querySelectorAll(".ms-quick-chip[data-quick-idx]").forEach(el=>{
-      el.addEventListener("click", ()=>{
-        const q = QUICK_PROMPTS[parseInt(el.dataset.quickIdx,10)];
-        state.chat.input = q.text;
-        render();
-        const ta = document.getElementById("ms-chat-input");
-        if(ta) ta.focus();
-        if(q.needsPhoto){
-          const fi = document.getElementById("ms-chat-file");
-          if(fi) fi.click();
-        }
-      });
-    });
+    const suggestBtn = document.getElementById("ms-suggest-prompt");
+    if(suggestBtn) suggestBtn.addEventListener("click", cycleSuggestedPrompt);
     scrollThreadToBottom();
   }
 
@@ -5038,6 +5388,10 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     if(sessionDateInputEl) sessionDateInputEl.addEventListener("input", e=>{ state.sessionDateInput = e.target.value; });
     const icsBtn = document.getElementById("ms-session-ics");
     if(icsBtn) icsBtn.addEventListener("click", ()=>downloadSessionIcs(state.nextSession.date));
+    const clearSessionBtn = document.getElementById("ms-session-clear");
+    if(clearSessionBtn) clearSessionBtn.addEventListener("click", ()=>{
+      if(confirm("Clear the next session date? You can set a new one anytime.")) clearNextSession();
+    });
     const nameInput = document.getElementById("ms-rt-name");
     if(nameInput){
       nameInput.addEventListener("input", e=>{ state.rt.name = e.target.value; state.rt.lastEntryChecked = false; });
@@ -5138,9 +5492,11 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   const accountBtn = document.getElementById("ms-account-btn");
   if(accountBtn) accountBtn.addEventListener("click", ()=>{
     state.showAccount = true;
+    state.settingsTab = "notifications";
     state.accountMembers = { loaded:false, loading:false, list:[], error:null };
     state.billing = { loaded:false, loading:false, status:null, trialEndsAt:null, currentPeriodEnd:null, checkoutLoading:false, error:null };
     render();
+    loadNotifyPrefs();
   });
   const darkToggleBtn = document.getElementById("ms-dark-toggle");
   if(darkToggleBtn) darkToggleBtn.addEventListener("click", ()=>{
@@ -5174,7 +5530,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       subscribeToPush().catch(()=>{}); // re-confirm the subscription row exists; no-op if it already does
     }
   }catch(e){}
-  loadChatHistory().catch(()=>{});
+  loadChatThreads().catch(()=>{});
 
   sb.auth.onAuthStateChange((_event, session)=>{
     state.session = session;
