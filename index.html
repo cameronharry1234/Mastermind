@@ -1821,13 +1821,94 @@ When advising: identify which pillar(s) above are actually relevant to the speci
   // One suggested opening line per pillar (in the same order as FACETS), used by
   // the cycling "Suggest a prompt" button below the chat input. Each click moves
   // to the next pillar and recolors the button to match it.
+  // 12 starter lines per pillar (72 total), index-aligned with FACETS, so the
+  // "Suggest a prompt" button has real variety instead of looping the same
+  // 6 lines over and over.
   const PILLAR_PROMPTS = [
-    { text:"I want to get serious about my finances — where do I actually start?" },
-    { text:"I keep starting strong and falling off after a week or two — what's actually going on?" },
-    { text:"I've got a tricky negotiation coming up — help me think through how to approach it." },
-    { text:"I need to have a hard conversation with someone close to me — how do I approach it?" },
-    { text:"Give me a personal image score out of 10 across wardrobe, fit, grooming, fitness, and confidence — ask me what you need to know first." },
-    { text:"I want to start thinking bigger than just my own goals — where do I even begin?" }
+    [ // Finance
+      "I want to get serious about my finances — where do I actually start?",
+      "I've got some savings sitting around doing nothing — what should I actually be doing with it?",
+      "I'm thinking about asking for a raise — how do I actually make the case?",
+      "I want to start a side business but I don't know if the idea is any good — how do I stress-test it?",
+      "I'm in debt and it's stressing me out — what's the right way to start tackling it?",
+      "I just got a bonus — walk me through how I should think about using it.",
+      "I want to retire earlier than most people — what would actually need to be true for that?",
+      "I'm thinking about changing careers for more money, but I'm not sure it's worth it — help me think it through.",
+      "How do I build an emergency fund without feeling like I'm never allowed to spend anything?",
+      "I want to negotiate a better deal on something big I'm about to buy — how do I approach it?",
+      "I keep spending more than I plan to every month — what's actually going on there?",
+      "I want to understand investing beyond just 'put it in an index fund' — where should I actually look?"
+    ],
+    [ // Discipline
+      "I keep starting strong and falling off after a week or two — what's actually going on?",
+      "I want to build a morning routine that actually sticks — where do I start?",
+      "I know what I should be doing, I just don't do it — how do I close that gap?",
+      "I want to get back in the gym after a long break without burning out in two weeks — how?",
+      "My sleep's a mess and it's affecting everything else — what's the first thing to fix?",
+      "I want to read more but I never actually pick up the book — what am I missing?",
+      "How do the stoics think about dealing with things outside my control?",
+      "I want to cut back on drinking without making it a whole identity thing — any advice?",
+      "I keep telling myself 'tomorrow' — how do I actually break that pattern?",
+      "I want more discipline without turning into someone miserable to be around — is that possible?",
+      "What's a realistic way to build a habit that survives a bad week, not just a good one?",
+      "I want to stop comparing my progress to other people's — how do I actually do that?"
+    ],
+    [ // Strategy
+      "I've got a tricky negotiation coming up — help me think through how to approach it.",
+      "I need to make a big decision and I keep going back and forth — how do I actually decide?",
+      "I'm leading a team for the first time and I'm not sure I'm doing it right — what should I focus on?",
+      "Someone keeps pushing back on everything I propose — how do I handle that without it becoming a fight?",
+      "I want to get better at reading a room before I speak — any practical way to build that?",
+      "I'm about to pitch an idea to people more senior than me — how do I make it land?",
+      "I keep overthinking decisions that probably don't matter that much — how do I calibrate that better?",
+      "How do I disagree with someone in charge without it costing me anything?",
+      "I want to get better at delegating instead of just doing everything myself — where do I start?",
+      "I've got competing priorities and limited time — how do I actually decide what matters most?",
+      "I want to build more influence at work without playing political games — is that realistic?",
+      "How do I know when to hold my position versus when to compromise?"
+    ],
+    [ // Relationships
+      "I need to have a hard conversation with someone close to me — how do I approach it?",
+      "I feel like I'm drifting from a close friend and I don't know how to bring it up.",
+      "I want to set a boundary with someone without it turning into a big confrontation — how?",
+      "Dating feels exhausting right now — how do I approach it without burning out?",
+      "My partner and I keep having the same argument — how do I actually break the cycle?",
+      "I want to be a better listener, especially when I disagree with what's being said.",
+      "How do I rebuild trust with someone after I let them down?",
+      "I want to make more real friendships as an adult — where do I even start?",
+      "I think I come across colder than I mean to — how do I fix that without faking it?",
+      "I need to apologize for something and I don't know how to do it without making excuses.",
+      "How do I support someone going through something hard without trying to fix it for them?",
+      "I want to be more present with my family instead of half-checked-out on my phone — how?"
+    ],
+    [ // Image
+      "Give me a personal image score out of 10 across wardrobe, fit, grooming, fitness, and confidence — ask me what you need to know first.",
+      "I want to build a simple wardrobe that actually works instead of a closet full of things I never wear.",
+      "How do I dress for a big occasion without looking like I'm trying too hard?",
+      "I want better posture and presence when I walk into a room — where do I start?",
+      "My grooming routine is basically nonexistent — what's the minimum that makes a real difference?",
+      "I want to come across more confident in meetings without faking it.",
+      "How do I figure out what actually fits me well instead of just what's trendy?",
+      "I want a simple fitness plan that fits around a busy schedule, not the other way round.",
+      "What's the etiquette I'm probably missing in professional settings?",
+      "I want to make a strong first impression without overthinking every detail.",
+      "How do I build real confidence instead of the performed kind that falls apart under pressure?",
+      "I want to figure out my personal style instead of just copying whatever I see online."
+    ],
+    [ // Legacy
+      "I want to start thinking bigger than just my own goals — where do I even begin?",
+      "I want to be a better mentor to someone younger — what does that actually look like?",
+      "How do I figure out what I actually want my legacy to be, beyond just 'be successful'?",
+      "I want to get more involved in my community but don't know where to start.",
+      "I'm thinking about what kind of father/husband I want to be — how do I actually define that?",
+      "How do I lead by example instead of just telling people what to do?",
+      "I want to leave something behind that matters beyond money — how do I think about that?",
+      "What does it look like to build something that outlasts me?",
+      "I want to be the kind of man younger guys actually look up to — what does that take?",
+      "How do I balance ambition with actually being present for the people who matter?",
+      "I want to give back in a way that's real, not performative — how do I approach that?",
+      "What's a good way to define 'success' that isn't just about my own life?"
+    ]
   ];
 
   const app = document.getElementById("ms-app");
@@ -2470,10 +2551,26 @@ When advising: identify which pillar(s) above are actually relevant to the speci
   // Cycles the "Suggest a prompt" button to the next of the 6 pillars, drops
   // that pillar's starter line into the input, and focuses it so the member can
   // send it as-is or edit it first.
+  // Fisher-Yates shuffle of [0..n) — used to hand out each pillar's 12
+  // starter lines in a random, non-repeating order before reshuffling.
+  function shuffledIndices(n){
+    const arr = Array.from({length:n}, (_,i)=>i);
+    for(let i=arr.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
   function cycleSuggestedPrompt(){
     const next = state.chat.suggestIdx === null ? 0 : (state.chat.suggestIdx + 1) % FACETS.length;
     state.chat.suggestIdx = next;
-    state.chat.input = PILLAR_PROMPTS[next].text;
+    if(!state.chat.suggestQueues) state.chat.suggestQueues = PILLAR_PROMPTS.map(()=>[]);
+    if(!state.chat.suggestQueues[next].length){
+      state.chat.suggestQueues[next] = shuffledIndices(PILLAR_PROMPTS[next].length);
+    }
+    const promptIdx = state.chat.suggestQueues[next].pop();
+    state.chat.input = PILLAR_PROMPTS[next][promptIdx];
     render();
     const ta = document.getElementById("ms-chat-input");
     if(ta) ta.focus();
