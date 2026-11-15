@@ -4345,6 +4345,8 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     document.querySelectorAll(".ms-tab-btn").forEach(b=>{
       b.classList.toggle("ms-active", b.dataset.tab === state.tab);
     });
+    const accountNavBtn = document.getElementById("ms-account-btn");
+    if(accountNavBtn) accountNavBtn.classList.toggle("ms-active", state.showAccount);
     const rootEl = document.getElementById("ms-root");
     if(rootEl){
       rootEl.classList.toggle("ms-theme-home", state.tab === "home");
@@ -5703,7 +5705,14 @@ Keep every string concise. Do not repeat things they say they've already tried. 
   }
 
   document.querySelectorAll(".ms-tab-btn[data-tab]").forEach(b=>{
-    b.addEventListener("click", ()=>{ state.tab = b.dataset.tab; render(); });
+    b.addEventListener("click", ()=>{
+      // Settings should behave like any other destination, not a modal stuck
+      // on top of everything — picking Mastermind/Roundtable/About while in
+      // Settings navigates straight there.
+      state.showAccount = false;
+      state.tab = b.dataset.tab;
+      render();
+    });
   });
   const profileNavBtn = document.getElementById("ms-profile-nav-btn");
   if(profileNavBtn) profileNavBtn.addEventListener("click", ()=>{
