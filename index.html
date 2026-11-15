@@ -554,8 +554,48 @@
     position:relative;
     overflow:hidden;
   }
-  .ms-forge-pdf-frame{
-    display:block; width:100%; height:100%; border:none; background:#525659;
+  .ms-forge-pdf-scroll{
+    width:100%; height:100%; overflow:auto;
+    display:flex; justify-content:center;
+    padding:18px 18px 60px;
+    box-sizing:border-box;
+  }
+  .ms-forge-pdf-scroll canvas{
+    background:#fff; box-shadow:0 8px 28px rgba(0,0,0,.45);
+    max-width:none;
+  }
+  .ms-forge-pdf-toolbar{
+    position:absolute; left:50%; bottom:14px; transform:translateX(-50%); z-index:3;
+    display:flex; align-items:center; gap:4px;
+    background:rgba(18,16,10,.88);
+    -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+    border:1px solid rgba(224,168,63,.35); border-radius:22px;
+    padding:5px 8px;
+  }
+  .ms-forge-pdf-tbtn{
+    background:none; border:none; cursor:pointer;
+    color:#f0e4c8; font-size:17px; line-height:1;
+    width:30px; height:30px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .ms-forge-pdf-tbtn:hover{ background:rgba(224,168,63,.2); }
+  .ms-forge-pdf-tbtn:disabled{ opacity:.35; cursor:default; }
+  .ms-forge-pdf-tbtn:disabled:hover{ background:none; }
+  .ms-forge-pdf-zoom-label{
+    color:#e8d9b8; font-family:'Space Mono',monospace; font-size:11px; min-width:40px; text-align:center;
+  }
+  .ms-forge-pdf-page-nav{
+    display:flex; align-items:center; gap:2px;
+    margin-left:6px; padding-left:8px; border-left:1px solid rgba(224,168,63,.3);
+  }
+  .ms-forge-pdf-page-nav span{
+    color:#e8d9b8; font-family:'Space Mono',monospace; font-size:11px; min-width:46px; text-align:center;
+  }
+  .ms-forge-pdf-status{
+    position:absolute; inset:0; z-index:2;
+    display:flex; align-items:center; justify-content:center;
+    color:#b7c2d6; font-family:'Space Mono',monospace; font-size:13px; text-align:center; padding:20px;
+    background:#20242c;
   }
   .ms-forge-pdf-download{
     position:absolute; top:12px; right:12px; z-index:3;
@@ -1444,8 +1484,18 @@
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.5.141/pdf.min.js"></script>
 <script>
 (function(){
+  // ---------- PDF rendering (The Forge viewer) ----------
+  // Real canvas-based rendering instead of an <iframe src="...pdf">, which is
+  // unreliable across browsers (notably iOS Safari, including as an
+  // installed PWA, which won't render a PDF embedded in an iframe at all) and
+  // gives us no control over zoom. pdf.js renders every page to a <canvas> we
+  // own, so zoom and page navigation are real, scriptable controls.
+  if(window.pdfjsLib){
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.5.141/pdf.worker.min.js";
+  }
   // ---------- Supabase backend ----------
   // Real accounts, a real shared database, real per-group row-level security —
   // replacing window.storage, which only ever existed inside the Claude artifact
@@ -3314,7 +3364,18 @@ Keep every string concise. Do not repeat things they say they've already tried. 
         <div class="ms-forge-pdf-area" id="ms-forge-pdf-area">
           ${state.forge.profilePdfLoading && !state.forge.manualPdf ? `<div class="ms-loading" style="color:#dce6f5;"><div class="ms-spinner"></div>Loading one-sheet...</div>` : ""}
           ${(!state.forge.profilePdfLoading || state.forge.manualPdf) && activePdf ? `
-            <iframe id="ms-forge-pdf-frame" class="ms-forge-pdf-frame" src="${activePdf.objectUrl}" title="PDF viewer"></iframe>
+            <div class="ms-forge-pdf-scroll" id="ms-forge-pdf-scroll"><canvas id="ms-forge-pdf-canvas"></canvas></div>
+            <div class="ms-forge-pdf-toolbar" id="ms-forge-pdf-toolbar">
+              <button type="button" class="ms-forge-pdf-tbtn" id="ms-forge-zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+              <span class="ms-forge-pdf-zoom-label" id="ms-forge-pdf-zoom-label">100%</span>
+              <button type="button" class="ms-forge-pdf-tbtn" id="ms-forge-zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+              <span class="ms-forge-pdf-page-nav" id="ms-forge-pdf-page-nav" style="display:none;">
+                <button type="button" class="ms-forge-pdf-tbtn" id="ms-forge-page-prev" title="Previous page" aria-label="Previous page">‹</button>
+                <span id="ms-forge-pdf-page-label">1 / 1</span>
+                <button type="button" class="ms-forge-pdf-tbtn" id="ms-forge-page-next" title="Next page" aria-label="Next page">›</button>
+              </span>
+            </div>
+            <div class="ms-forge-pdf-status" id="ms-forge-pdf-status" style="display:none;"></div>
             <a class="ms-forge-pdf-download" href="${activePdf.objectUrl}" download="${esc(activePdf.name || 'one-sheet.pdf')}" title="Download this PDF" aria-label="Download this PDF">⬇</a>
           ` : ""}
           ${!state.forge.profilePdfLoading && !activePdf ? `
@@ -3484,7 +3545,20 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     const fullscreenBtn = document.getElementById("ms-forge-fullscreen-btn");
     if(fullscreenBtn) fullscreenBtn.addEventListener("click", toggleForgeFullscreen);
 
-    sizeForgePdfFrame();
+    const activePdfForViewer = forgeActivePdf();
+    if(activePdfForViewer) ForgePdfViewer.load(activePdfForViewer);
+    else ForgePdfViewer.clear();
+
+    const zoomOutBtn = document.getElementById("ms-forge-zoom-out");
+    if(zoomOutBtn) zoomOutBtn.addEventListener("click", ()=>ForgePdfViewer.zoomOut());
+    const zoomInBtn = document.getElementById("ms-forge-zoom-in");
+    if(zoomInBtn) zoomInBtn.addEventListener("click", ()=>ForgePdfViewer.zoomIn());
+    const pagePrevBtn = document.getElementById("ms-forge-page-prev");
+    if(pagePrevBtn) pagePrevBtn.addEventListener("click", ()=>ForgePdfViewer.prevPage());
+    const pageNextBtn = document.getElementById("ms-forge-page-next");
+    if(pageNextBtn) pageNextBtn.addEventListener("click", ()=>ForgePdfViewer.nextPage());
+    const pdfCanvas = document.getElementById("ms-forge-pdf-canvas");
+    if(pdfCanvas) pdfCanvas.addEventListener("dblclick", ()=>ForgePdfViewer.zoomIn());
 
     const modeSw = document.getElementById("ms-forge-mode-sw");
     if(modeSw) modeSw.addEventListener("click", ()=>{ state.forge.clockMode='stopwatch'; render(); });
@@ -3869,7 +3943,9 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     if(!isPdfFile(file)){ state.forge.uploadError = "That doesn't look like a PDF."; render(); return; }
     if(state.forge.manualPdf && state.forge.manualPdf.objectUrl) URL.revokeObjectURL(state.forge.manualPdf.objectUrl);
     const objectUrl = URL.createObjectURL(file);
-    state.forge.manualPdf = { name:file.name, objectUrl };
+    // Keep the raw File too — pdf.js reads it directly as bytes, which is more
+    // reliable across browsers than having it re-fetch the blob: URL.
+    state.forge.manualPdf = { name:file.name, objectUrl, file };
     state.forge.activeSource = 'manual';
     state.forge.uploadError = null;
     render();
@@ -3950,20 +4026,153 @@ Keep every string concise. Do not repeat things they say they've already tried. 
 
   // Explicit pixel sizing for the PDF iframe — belt-and-suspenders against any
   // flexbox percentage-height quirk in this nested/embedded environment.
-  function sizeForgePdfFrame(){
-    const frame = document.getElementById('ms-forge-pdf-frame');
-    const area = document.getElementById('ms-forge-pdf-area');
-    if(!frame || !area) return;
-    const h = area.clientHeight;
-    if(h > 0) frame.style.height = h + 'px';
-  }
+  // ---------- The Forge: canvas PDF viewer (zoom + page nav, no native iframe) ----------
+  // Lives outside the render()/state cycle on purpose: render() tears down and
+  // rebuilds the whole Forge view's innerHTML on every state change (same as
+  // everywhere else in this app), which would otherwise wipe the canvas and
+  // reset zoom/page every time someone toggles history, picks a different
+  // source, etc. So this module keeps its own doc/zoom/page in memory, and
+  // bindRtForgeEvents() just tells it to re-attach to whatever canvas exists
+  // after each render — reusing the already-parsed PDF instead of re-fetching
+  // it when it's the same document.
+  const ForgePdfViewer = (function(){
+    let doc = null, docKey = null, pageNum = 1, numPages = 1, scale = 1, fitScale = 1, userZoomed = false, rendering = false, renderToken = 0;
+
+    function statusEl(){ return document.getElementById('ms-forge-pdf-status'); }
+    function showStatus(msg){
+      const el = statusEl();
+      const toolbar = document.getElementById('ms-forge-pdf-toolbar');
+      const dl = document.querySelector('.ms-forge-pdf-download');
+      if(el){ if(msg){ el.textContent = msg; el.style.display = 'flex'; } else el.style.display = 'none'; }
+      if(toolbar) toolbar.style.visibility = msg ? 'hidden' : 'visible';
+      if(dl) dl.style.visibility = msg ? 'hidden' : 'visible';
+    }
+
+    function updateToolbar(){
+      const zoomLabel = document.getElementById('ms-forge-pdf-zoom-label');
+      if(zoomLabel) zoomLabel.textContent = Math.round((scale / (fitScale||1)) * 100) + '%';
+      const nav = document.getElementById('ms-forge-pdf-page-nav');
+      const pageLabel = document.getElementById('ms-forge-pdf-page-label');
+      if(nav) nav.style.display = numPages > 1 ? 'flex' : 'none';
+      if(pageLabel) pageLabel.textContent = pageNum + ' / ' + numPages;
+      const prevBtn = document.getElementById('ms-forge-page-prev');
+      const nextBtn = document.getElementById('ms-forge-page-next');
+      if(prevBtn) prevBtn.disabled = pageNum <= 1;
+      if(nextBtn) nextBtn.disabled = pageNum >= numPages;
+      const zoomOutBtn = document.getElementById('ms-forge-zoom-out');
+      const zoomInBtn = document.getElementById('ms-forge-zoom-in');
+      if(zoomOutBtn) zoomOutBtn.disabled = scale <= 0.25;
+      if(zoomInBtn) zoomInBtn.disabled = scale >= 6;
+    }
+
+    async function renderPage(){
+      const canvas = document.getElementById('ms-forge-pdf-canvas');
+      if(!doc || !canvas) return;
+      const myToken = ++renderToken;
+      rendering = true;
+      try{
+        const page = await doc.getPage(pageNum);
+        if(myToken !== renderToken) return;
+        const viewport = page.getViewport({ scale });
+        const outputScale = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = Math.floor(viewport.width) + 'px';
+        canvas.style.height = Math.floor(viewport.height) + 'px';
+        const ctx = canvas.getContext('2d');
+        const transform = outputScale !== 1 ? [outputScale,0,0,outputScale,0,0] : undefined;
+        await page.render({ canvasContext: ctx, viewport, transform }).promise;
+        if(myToken !== renderToken) return;
+        showStatus(null);
+        updateToolbar();
+      }catch(e){
+        if(myToken === renderToken){ console.error(e); showStatus("Couldn't render this PDF."); }
+      }
+      rendering = false;
+    }
+
+    function computeFitScale(viewport, area){
+      if(!area || !area.clientWidth) return 1;
+      const availWidth = Math.max(140, area.clientWidth - 36);
+      return Math.max(0.2, availWidth / viewport.width);
+    }
+
+    async function load(pdfInfo){
+      const canvas = document.getElementById('ms-forge-pdf-canvas');
+      const area = document.getElementById('ms-forge-pdf-area');
+      if(!pdfInfo || !canvas || !area || !window.pdfjsLib){ clear(); return; }
+      const key = pdfInfo.file ? ('file:' + pdfInfo.name + ':' + pdfInfo.file.size) : ('url:' + pdfInfo.objectUrl);
+      if(key === docKey && doc){
+        // Same document, just a fresh canvas after a re-render — redraw at
+        // whatever zoom/page the person already had.
+        renderPage();
+        return;
+      }
+      docKey = key;
+      doc = null; pageNum = 1; numPages = 1; scale = 1; fitScale = 1; userZoomed = false;
+      showStatus("Loading PDF...");
+      try{
+        const src = pdfInfo.file
+          ? { data: await pdfInfo.file.arrayBuffer() }
+          : { url: pdfInfo.objectUrl };
+        const loaded = await window.pdfjsLib.getDocument(src).promise;
+        if(key !== docKey) return; // superseded by a newer load() call
+        doc = loaded;
+        numPages = doc.numPages;
+        const firstPage = await doc.getPage(1);
+        const naturalViewport = firstPage.getViewport({ scale: 1 });
+        fitScale = computeFitScale(naturalViewport, area);
+        scale = fitScale;
+        await renderPage();
+      }catch(e){
+        console.error(e);
+        if(key === docKey) showStatus("Couldn't open this PDF — try downloading it instead.");
+      }
+    }
+
+    function clear(){
+      doc = null; docKey = null; pageNum = 1; numPages = 1; scale = 1; fitScale = 1; userZoomed = false;
+      renderToken++;
+    }
+
+    function zoomBy(factor){
+      if(!doc) return;
+      userZoomed = true;
+      scale = Math.max(0.25, Math.min(6, scale * factor));
+      renderPage();
+    }
+    function zoomIn(){ zoomBy(1.25); }
+    function zoomOut(){ zoomBy(0.8); }
+    function nextPage(){ if(doc && pageNum < numPages){ pageNum++; renderPage(); } }
+    function prevPage(){ if(doc && pageNum > 1){ pageNum--; renderPage(); } }
+
+    // On resize/fullscreen toggle, only re-fit if the person hasn't manually
+    // zoomed — otherwise their chosen zoom level would keep getting reset.
+    function refit(){
+      const canvas = document.getElementById('ms-forge-pdf-canvas');
+      const area = document.getElementById('ms-forge-pdf-area');
+      if(!doc || !canvas || !area || userZoomed) return;
+      doc.getPage(pageNum).then(page=>{
+        const naturalViewport = page.getViewport({ scale: 1 });
+        fitScale = computeFitScale(naturalViewport, area);
+        scale = fitScale;
+        renderPage();
+      }).catch(()=>{});
+    }
+
+    return { load, clear, zoomIn, zoomOut, nextPage, prevPage, refit };
+  })();
 
   function toggleForgeFullscreen(){
     const el = document.getElementById('ms-forge-viewer');
     if(!el) return;
+    // Pseudo-fullscreen goes through state + a full render(), which rebuilds
+    // the canvas at its new size but doesn't know to re-fit it — nudge that
+    // once the new layout has settled.
     if(state.forge.pseudoFullscreen){
       state.forge.pseudoFullscreen = false;
       render();
+      setTimeout(()=>ForgePdfViewer.refit(), 50);
       return;
     }
     if(document.fullscreenElement || document.webkitFullscreenElement){
@@ -3975,15 +4184,17 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       try{
         const result = req.call(el);
         if(result && typeof result.catch === 'function'){
-          result.catch(()=>{ state.forge.pseudoFullscreen = true; render(); });
+          result.catch(()=>{ state.forge.pseudoFullscreen = true; render(); setTimeout(()=>ForgePdfViewer.refit(), 50); });
         }
       }catch(e){
         state.forge.pseudoFullscreen = true;
         render();
+        setTimeout(()=>ForgePdfViewer.refit(), 50);
       }
     } else {
       state.forge.pseudoFullscreen = true;
       render();
+      setTimeout(()=>ForgePdfViewer.refit(), 50);
     }
   }
 
@@ -5513,11 +5724,11 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       render();
     }
   });
-  document.addEventListener('fullscreenchange', ()=>setTimeout(sizeForgePdfFrame, 50));
-  document.addEventListener('webkitfullscreenchange', ()=>setTimeout(sizeForgePdfFrame, 50));
+  document.addEventListener('fullscreenchange', ()=>setTimeout(()=>ForgePdfViewer.refit(), 50));
+  document.addEventListener('webkitfullscreenchange', ()=>setTimeout(()=>ForgePdfViewer.refit(), 50));
   window.addEventListener('resize', ()=>{
     clearTimeout(window.__msForgeResizeT);
-    window.__msForgeResizeT = setTimeout(sizeForgePdfFrame, 150);
+    window.__msForgeResizeT = setTimeout(()=>ForgePdfViewer.refit(), 150);
   });
 
   // Device-only preferences never touched the shared database, so they stay
