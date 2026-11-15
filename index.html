@@ -308,16 +308,22 @@
   .ms-reset-link:hover{ color:var(--sky-bright); }
 
   /* Back navigation - always top-left of whatever page/panel it belongs to, so
-     people don't have to hunt for it (or scroll down) to go back. */
+     people don't have to hunt for it (or scroll down) to go back. Deliberately
+     heavier than a quiet text link — a solid pill with a bold arrow, high
+     contrast against the page in both light and dark mode. */
   .ms-back-btn{
-    display:inline-flex; align-items:center; gap:6px;
-    background:none; border:none; cursor:pointer; padding:0;
-    color:var(--ink-dim);
-    font-family:'Space Mono',monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase;
-    margin-bottom:18px;
+    display:inline-flex; align-items:center; gap:7px;
+    background:var(--sky-pale); border:1.5px solid var(--line); cursor:pointer;
+    color:var(--ink);
+    font-family:'Space Mono',monospace; font-size:12.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    padding:9px 18px 9px 13px;
+    border-radius:22px;
+    margin-bottom:20px;
+    transition:background .15s ease, border-color .15s ease, color .15s ease, transform .1s ease;
   }
-  .ms-back-btn:hover{ color:var(--sky-bright); }
-  .ms-back-btn svg{ width:15px; height:15px; }
+  .ms-back-btn:hover{ background:var(--sky); border-color:var(--sky); color:#fff; }
+  .ms-back-btn:active{ transform:translateY(1px); }
+  .ms-back-btn svg{ width:16px; height:16px; flex:0 0 auto; }
 
   /* --- Settings page: toggle rows, switches, small tab bar --- */
   .ms-settings-toggle-row{
@@ -1616,7 +1622,7 @@
     const sections = isTerms ? TERMS_SECTIONS : PRIVACY_SECTIONS;
     return `
       <div class="ms-shell-inner" style="max-width:640px; margin:0 auto; padding:28px 18px 60px;">
-        <button class="ms-back-btn" id="ms-legal-close-btn">← Back</button>
+        <button class="ms-back-btn" id="ms-legal-close-btn">${backArrowIcon()} Back</button>
         <div class="ms-eyebrow">${isTerms ? "Terms of Service" : "Privacy Policy"}</div>
         <h1 class="ms-title">${isTerms ? "Terms of<br/><em>Service.</em>" : "Privacy<br/><em>Policy.</em>"}</h1>
         <p class="ms-sub-dim">Last updated ${esc(LEGAL_LAST_UPDATED)}.</p>
@@ -2127,6 +2133,12 @@ When advising: identify which pillar(s) above are actually relevant to the speci
 
   function clipIcon(){
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"/></svg>`;
+  }
+
+  // Bold left-arrow for the back-navigation pill — a thick stroke so it reads
+  // clearly as "go back" at a glance, not a thin decorative dash.
+  function backArrowIcon(){
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></svg>`;
   }
 
   // Recycle/refresh-style glyph for the "Suggest a prompt" button — two curved
@@ -3234,7 +3246,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
 
   function renderRtDashboard(){
     return `
-      <button class="ms-back-btn" id="ms-rt-dash-back">← Back</button>
+      <button class="ms-back-btn" id="ms-rt-dash-back">${backArrowIcon()} Back</button>
       <div class="ms-eyebrow">Roundtable — Dashboard</div>
       ${PROVERBS_BANNER}
       <h1 class="ms-title">Who's <em>on pace.</em></h1>
@@ -3320,7 +3332,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     const activePdf = forgeActivePdf();
     const activeSource = hasBoth ? (state.forge.activeSource === 'manual' ? 'manual' : 'profile') : null;
     return `
-      <button class="ms-back-btn" id="ms-rt-forge-back">← Back</button>
+      <button class="ms-back-btn" id="ms-rt-forge-back">${backArrowIcon()} Back</button>
       <div class="ms-eyebrow">Roundtable — Live Session</div>
       ${PROVERBS_BANNER}
       <h1 class="ms-title">Welcome to <em>The Forge.</em></h1>
@@ -3603,7 +3615,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
       `).join("");
     }
     return `
-      <button class="ms-back-btn" id="ms-rt-back">← Back</button>
+      <button class="ms-back-btn" id="ms-rt-back">${backArrowIcon()} Back</button>
       <div class="ms-eyebrow">Roundtable — Group Roster</div>
       ${PROVERBS_BANNER}
       <h1 class="ms-title">Who's <em>prepared.</em></h1>
@@ -5018,7 +5030,7 @@ Keep every string concise. Do not repeat things they say they've already tried. 
     const activeTab = tabs.some(t=>t.key===state.settingsTab) ? state.settingsTab : tabs[0].key;
     return `
       <div class="ms-shell-inner" style="max-width:640px; margin:0 auto; padding:28px 18px 60px;">
-        <button class="ms-back-btn" id="ms-account-close-btn">← Back</button>
+        <button class="ms-back-btn" id="ms-account-close-btn">${backArrowIcon()} Back</button>
         <div class="ms-eyebrow">Account</div>
         <h1 class="ms-title">Settings &amp;<br/><em>account.</em></h1>
 
